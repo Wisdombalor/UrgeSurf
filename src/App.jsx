@@ -128,6 +128,16 @@ export default function App() {
           setSheet({ name: 'share' })
           showToast('Signed in — you can post now')
         }
+      } else {
+        // Onboarded, no session (e.g. refresh while on the login wall) —
+        // reopen login instead of dropping to the dashboard.
+        let ret = null
+        try {
+          ret = sessionStorage.getItem('rc_auth_return')
+        } catch {
+          // ignore
+        }
+        if (ret === 'share') setSheet({ name: 'auth' })
       }
     })()
     const sub = supabase?.auth.onAuthStateChange((event, session) => {
@@ -334,6 +344,18 @@ export default function App() {
       closeSheet()
       showToast('Signed in')
     }
+  }
+
+  function handleAuthClose() {
+    // Backing out of login cancels the pending redirect — otherwise the
+    // next refresh would pop login open again uninvited.
+    authReturn.current = null
+    try {
+      sessionStorage.removeItem('rc_auth_return')
+    } catch {
+      // ignore
+    }
+    closeSheet()
   }
 
   function handleShareClick() {
@@ -586,7 +608,7 @@ export default function App() {
             closable={data.onboarded}
             onAuthed={handleAuthed}
             onGuest={handleGuest}
-            onClose={closeSheet}
+            onClose={handleAuthClose}
           />
         )
       case 'share':

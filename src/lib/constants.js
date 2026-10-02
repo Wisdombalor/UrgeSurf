@@ -97,7 +97,7 @@ export const CR = {
 
 export const GAMBLING_LINES = {
   NG: [
-    ['Gamble Alert (24/7, toll free)', '+2347058890073', '+234 705 889 0073', 'https://gamblealert.org'],
+    ['Gamble Alert (24/7, toll free)', '+2347058890073', '+234 705 889 0073', ''],
     ['Gamble Alert (second line)', '+2347058890074', '+234 705 889 0074', ''],
   ],
   US: [
