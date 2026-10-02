@@ -115,6 +115,19 @@ export default function App() {
         setSheet({ name: 'auth' })
       } else if (!dataRef.current.onboarded) {
         setSheet({ name: 'onboard' })
+      } else if (sessionUser) {
+        // Returning from Google OAuth — resume where the user left off.
+        let ret = null
+        try {
+          ret = sessionStorage.getItem('rc_auth_return')
+          sessionStorage.removeItem('rc_auth_return')
+        } catch {
+          // ignore
+        }
+        if (ret === 'share') {
+          setSheet({ name: 'share' })
+          showToast('Signed in — you can post now')
+        }
       }
     })()
     const sub = supabase?.auth.onAuthStateChange((event, session) => {
@@ -292,6 +305,11 @@ export default function App() {
 
   function handleGuest() {
     authReturn.current = null
+    try {
+      sessionStorage.removeItem('rc_auth_return')
+    } catch {
+      // ignore
+    }
     setGuest(true)
     // Already-onboarded guests who hit the login wall (e.g. via Share) must
     // land back where they were — never back on the onboarding screen.
@@ -301,6 +319,11 @@ export default function App() {
 
   function handleAuthed() {
     setGuest(false)
+    try {
+      sessionStorage.removeItem('rc_auth_return')
+    } catch {
+      // ignore
+    }
     if (!dataRef.current.onboarded) {
       setSheet({ name: 'onboard' })
     } else if (authReturn.current === 'share') {
@@ -317,7 +340,13 @@ export default function App() {
     if (!user) {
       // Guests must log in before they can share — take them there instantly,
       // then drop them back on the share sheet once signed in.
+      // sessionStorage (not just the ref) so it survives Google OAuth redirects.
       authReturn.current = 'share'
+      try {
+        sessionStorage.setItem('rc_auth_return', 'share')
+      } catch {
+        // ignore
+      }
       setSheet({ name: 'auth' })
       return
     }

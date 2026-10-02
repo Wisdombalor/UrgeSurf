@@ -873,6 +873,9 @@ a.cta {
   .post.enter {
     animation: fadeOnly 180ms var(--ease-out) both;
   }
+  .live-dot {
+    animation: none;
+  }
   .ball {
     animation: breatheCalm 4s ease-in-out infinite;
   }
