@@ -597,6 +597,7 @@ a.cta {
   flex: none;
 }
 .icon-btn {
+  flex: none;
   width: 42px;
   height: 42px;
   border-radius: 14px;

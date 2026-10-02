@@ -41,6 +41,23 @@ function readGuestFlag() {
   }
 }
 
+const THEME_KEY = 'rc_theme'
+
+function readTheme() {
+  try {
+    const saved = localStorage.getItem(THEME_KEY)
+    if (saved === 'light' || saved === 'dark') return saved
+  } catch {
+    // ignore
+  }
+  try {
+    if (window.matchMedia?.('(prefers-color-scheme: light)').matches) return 'light'
+  } catch {
+    // ignore
+  }
+  return 'dark'
+}
+
 export default function App() {
   const [data, setData] = useState(() => loadData())
   const [tab, setTab] = useState('home')
@@ -51,6 +68,7 @@ export default function App() {
   const [posts, setPosts] = useState([])
   const [user, setUser] = useState(null)
   const [isGuest, setIsGuest] = useState(() => readGuestFlag())
+  const [theme, setTheme] = useState(() => readTheme())
 
   const dataRef = useRef(data)
   const dbRef = useRef(null)
@@ -83,6 +101,20 @@ export default function App() {
   }, [])
 
   const closeSheet = useCallback(() => setSheet(null), [])
+
+  // Theme: explicit data-theme wins over the system preference, persisted.
+  useEffect(() => {
+    try {
+      document.documentElement.setAttribute('data-theme', theme)
+      localStorage.setItem(THEME_KEY, theme)
+    } catch {
+      // ignore
+    }
+  }, [theme])
+
+  const toggleTheme = useCallback(() => {
+    setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
+  }, [])
 
   const setGuest = useCallback((v) => {
     setIsGuest(v)
@@ -699,6 +731,8 @@ export default function App() {
             data={data}
             user={user}
             isGuest={!user}
+            theme={theme}
+            onToggleTheme={toggleTheme}
             onLogin={() => setSheet({ name: 'auth' })}
             onSignOut={handleSignOut}
             onOpenUrge={() => setSheet({ name: 'urge' })}

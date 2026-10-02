@@ -12,6 +12,8 @@ export default function Home({
   data,
   user,
   isGuest,
+  theme,
+  onToggleTheme,
   onLogin,
   onSignOut,
   onOpenUrge,
@@ -63,6 +65,13 @@ export default function Home({
             {data.name ? ', ' + data.name : ''}
           </span>
         </p>
+        <button
+          className="icon-btn"
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          onClick={onToggleTheme}
+        >
+          <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={20} />
+        </button>
         <AccountMenu
           name={data.name}
           email={user?.email}
