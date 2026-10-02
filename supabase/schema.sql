@@ -1,6 +1,6 @@
 -- In-Recovery community posts table.
 -- Run this once in Supabase Dashboard → SQL Editor.
--- Auth: email/password + magic link both work with these policies.
+-- Auth: Google OAuth. One Google account = one user.
 
 create table if not exists public.posts (
   id uuid primary key default gen_random_uuid(),

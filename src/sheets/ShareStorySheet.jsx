@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import Sheet, { CloseButton } from '../components/Sheet'
+import Icon from '../components/Icon'
 import { SelectableCard } from '../components/ui'
 import { COMMUNITY_RULES } from '../lib/constants'
 import { containsContactInfo, readFilesAsDataUrls } from '../lib/helpers'
 
-const MIN_LEN = 20
+const MIN_LEN = 10
 
 export default function ShareStorySheet({ defaultName, isGuest, onLogin, onClose, onPost }) {
   const [text, setText] = useState('')
@@ -178,15 +179,19 @@ export default function ShareStorySheet({ defaultName, isGuest, onLogin, onClose
             ))}
           </ul>
           <button
-            className="chip"
-            aria-pressed={agreed}
+            className="agree-row"
+            role="checkbox"
+            aria-checked={agreed}
             style={{ marginTop: 10 }}
             onClick={() => {
               setAgreed((a) => !a)
               if (errors.agreed) setErrors((p) => ({ ...p, agreed: undefined }))
             }}
           >
-            {agreed ? '✓ ' : ''}I follow these rules
+            <span className="agree-box" data-on={agreed} aria-hidden="true">
+              {agreed ? <Icon name="check" size={16} /> : null}
+            </span>
+            I follow these rules
           </button>
           {errors.agreed ? (
             <span role="alert" className="field-error">

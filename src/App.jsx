@@ -176,10 +176,6 @@ export default function App() {
       const u = session?.user || null
       setUser(u)
       if (u) setGuest(false)
-      // User opened the email reset link — show the new-password screen.
-      if (event === 'PASSWORD_RECOVERY') {
-        setSheet({ name: 'auth', reset: true })
-      }
     })
     return () => {
       cancelled = true
@@ -193,37 +189,42 @@ export default function App() {
   }, [])
 
   // Community feed from Supabase when configured (graceful local fallback).
-  useEffect(() => {
+  // Refreshed on launch and every time the Community tab opens, so posts
+  // from other accounts and devices show up without a full reload.
+  // Guests see the same feed — it persists across login and logout.
+  const fetchPosts = useCallback(async () => {
     if (!supabase || !isSupabaseConfigured) return
-    let cancelled = false
-    ;(async () => {
-      try {
-        const { data, error } = await supabase
-          .from('posts')
-          .select('id,created_at,text,who,sober_days,owner_id')
-          .order('created_at', { ascending: false })
-          .limit(100)
-        if (error || cancelled) return
-        setPosts(
-          (data || []).map((r) => ({
-            id: r.id,
-            t: new Date(r.created_at).getTime(),
-            text: r.text,
-            who: r.who || '',
-            cat: 'Story',
-            media: [],
-            soberDays: r.sober_days ?? null,
-            owner: r.owner_id || '',
-          })),
-        )
-      } catch {
-        // table may not exist yet — local posts still work
-      }
-    })()
-    return () => {
-      cancelled = true
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select('id,created_at,text,who,sober_days,owner_id')
+        .order('created_at', { ascending: false })
+        .limit(100)
+      if (error) return
+      setPosts(
+        (data || []).map((r) => ({
+          id: r.id,
+          t: new Date(r.created_at).getTime(),
+          text: r.text,
+          who: r.who || '',
+          cat: 'Story',
+          media: [],
+          soberDays: r.sober_days ?? null,
+          owner: r.owner_id || '',
+        })),
+      )
+    } catch {
+      // table may not exist yet — local posts still work
     }
-  }, [user])
+  }, [])
+
+  useEffect(() => {
+    fetchPosts()
+  }, [fetchPosts])
+
+  useEffect(() => {
+    if (tab === 'com') fetchPosts()
+  }, [tab, fetchPosts])
 
   // Optional claude.ai backend — gracefully degrades to localStorage outside it.
   useEffect(() => {
@@ -359,25 +360,6 @@ export default function App() {
     else closeSheet()
   }
 
-  function handleAuthed() {
-    setGuest(false)
-    try {
-      sessionStorage.removeItem('rc_auth_return')
-    } catch {
-      // ignore
-    }
-    if (!dataRef.current.onboarded) {
-      setSheet({ name: 'onboard' })
-    } else if (authReturn.current === 'share') {
-      authReturn.current = null
-      setSheet({ name: 'share' })
-      showToast('Signed in — you can post now')
-    } else {
-      closeSheet()
-      showToast('Signed in')
-    }
-  }
-
   function handleAuthClose() {
     // Backing out of login cancels the pending redirect — otherwise the
     // next refresh would pop login open again uninvited.
@@ -415,12 +397,34 @@ export default function App() {
     }
     setUser(null)
     setGuest(true)
-    closeSheet()
-    showToast("Signed out. You're browsing as a guest.")
+    try {
+      sessionStorage.removeItem('rc_auth_return')
+    } catch {
+      // ignore
+    }
+    authReturn.current = null
+    setTab('home')
+    // Logging out lands on the login screen — community posts stay put.
+    // Locked: no X to dismiss, pick Google or continue as a guest.
+    setSheet({ name: 'auth', lock: true })
+    showToast("Signed out. Log in again any time.")
   }
 
-  // Guests: wipe this device and restart onboarding (stay a guest).
-  function handleDeleteAll() {
+  // Delete my data: wipe this device and go back to the login screen.
+  async function handleDeleteAll() {
+    try {
+      await supabase?.auth.signOut()
+    } catch {
+      // ignore — local wipe still proceeds
+    }
+    setUser(null)
+    setGuest(false)
+    try {
+      sessionStorage.removeItem('rc_auth_return')
+    } catch {
+      // ignore
+    }
+    authReturn.current = null
     const fresh = clearData()
     if (dbRef.current && uidRef.current) {
       dbRef.current
@@ -430,9 +434,10 @@ export default function App() {
     }
     dataRef.current = fresh
     setData(fresh)
+    // Community feed stays — only this device's data was wiped.
     setTab('home')
-    setSheet({ name: 'onboard' })
-    showToast('Your data was deleted. Starting fresh.')
+    setSheet({ name: 'auth', lock: true })
+    showToast('Your data was deleted. You are signed out.')
   }
 
   // Signed-in users: delete community posts + local data, sign out, back to auth.
@@ -462,9 +467,10 @@ export default function App() {
     const fresh = clearData()
     dataRef.current = fresh
     setData(fresh)
-    setPosts([])
+    // Drop only this user's posts from the feed — everyone else's stay.
+    setPosts((prev) => prev.filter((p) => p.owner !== u?.id))
     setTab('home')
-    setSheet({ name: 'auth' })
+    setSheet({ name: 'auth', lock: true })
     showToast('Account data deleted. You are signed out.')
   }
 
@@ -510,7 +516,10 @@ export default function App() {
         .insert({ owner_id: user.id, text, who: who || '', sober_days: dsince(dataRef.current.since) })
         .select('id,created_at,text,who,sober_days,owner_id')
         .then(({ data: rows, error }) => {
-          if (error || !rows?.length) return
+          if (error || !rows?.length) {
+            showToast('Could not publish — saved on this device only')
+            return
+          }
           const r = rows[0]
           const remote = {
             id: r.id,
@@ -634,11 +643,11 @@ export default function App() {
       case 'auth':
         return (
           <AuthSheet
-            initialStep={sheet.reset ? 'reset' : 'form'}
             // First-launch users must pick login or guest — no skipping.
-            // Everyone else (e.g. via Share) gets an X to back out.
-            closable={data.onboarded}
-            onAuthed={handleAuthed}
+            // Same after logout/delete: the sheet is locked (no X) until
+            // they choose Google or continue as a guest.
+            // Via Share it stays dismissable so guests can back out.
+            closable={data.onboarded && !sheet.lock}
             onGuest={handleGuest}
             onClose={handleAuthClose}
           />

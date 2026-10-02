@@ -184,8 +184,8 @@ export default function ProfileSheet({ data, user, isGuest, onClose, onSave, onD
         <b>{signedIn ? 'Delete account' : 'Delete my data'}</b>
         <p className="s" style={{ marginTop: 4 }}>
           {signedIn
-            ? 'Deletes your community posts and everything on this device, signs you out, and takes you back to the welcome screen.'
-            : 'Erases everything on this device — profile, streak, urges, journal — and takes you back to the welcome screen to start over.'}
+            ? 'Deletes your community posts and everything on this device, signs you out, and takes you back to the login screen.'
+            : 'Erases everything on this device — profile, streak, urges, journal — signs you out, and takes you back to the login screen to start over.'}
         </p>
         {confirmingDelete ? (
           <>
