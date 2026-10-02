@@ -60,9 +60,8 @@ export default function Home({
       <div className="row" style={{ alignItems: 'center' }}>
         <p className="s brand-line">
           <LogoMark size={26} />
-          <span>
-            <b style={{ color: 'var(--acc)' }}>UrgeSurf</b> · {greet()}
-            {data.name ? ', ' + data.name : ''}
+          <span className="brand-text">
+            <b style={{ color: 'var(--acc)' }}>UrgeSurf</b>
           </span>
         </p>
         <button
@@ -70,7 +69,7 @@ export default function Home({
           aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           onClick={onToggleTheme}
         >
-          <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={20} />
+          <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={24} />
         </button>
         <AccountMenu
           name={data.name}
@@ -82,6 +81,10 @@ export default function Home({
           onSignOut={onSignOut}
         />
       </div>
+      <p className="s home-greet">
+        {greet()}
+        {data.name ? ', ' + data.name : ''}
+      </p>
       <h1>How are you feeling right now?</h1>
       <button className="urge" onClick={onOpenUrge} aria-label="I'm having an urge. Get help through it.">
         <span className="urge-icon" aria-hidden="true">

@@ -25,14 +25,31 @@ export default function AccountMenu({ name, email, avatar, isGuest, onProfile, o
   return (
     <div className="menu-wrap">
       <button
-        className="icon-btn"
+        className="icon-btn menu-trigger"
         aria-label="Open menu"
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((o) => !o)}
       >
-        <Icon name="menu" size={22} />
+        <Icon name="menu" size={24} />
       </button>
+      <div className="account-inline">
+        <button className="account-btn" onClick={onProfile}>
+          <Icon name="user" size={18} />
+          My profile
+        </button>
+        {isGuest ? (
+          <button className="account-btn account-btn-accent" onClick={onLogin}>
+            <Icon name="logIn" size={18} />
+            Log in / Sign up
+          </button>
+        ) : (
+          <button className="account-btn" onClick={onSignOut}>
+            <Icon name="logOut" size={18} />
+            Log out
+          </button>
+        )}
+      </div>
       {open ? (
         <>
           <button className="menu-backdrop" aria-hidden="true" tabIndex={-1} onClick={() => setOpen(false)} />
