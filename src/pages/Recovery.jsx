@@ -1,4 +1,4 @@
-import { dsince, longest } from '../lib/helpers'
+import { dsince, fmt, longest } from '../lib/helpers'
 import SobrietyTimer from '../components/SobrietyTimer'
 import SavingsCard from '../components/SavingsCard'
 import UrgeLog from '../components/UrgeLog'
@@ -21,7 +21,8 @@ export default function Recovery({ data, onLogUrge, onResetStreak, onEditStreakD
     .sort((a, b) => T[b] - T[a])
     .slice(0, 4)
   const mx = ks.length ? T[ks[0]] : 1
-  const per = data.periods.concat([{ days: d }])
+  const past = Array.isArray(data.periods) ? data.periods : []
+  const totalDays = past.reduce((s, p) => s + (Number(p.days) || 0), 0) + d
 
   return (
     <div>
@@ -36,18 +37,38 @@ export default function Recovery({ data, onLogUrge, onResetStreak, onEditStreakD
       </button>
       <SavingsCard data={data} onEdit={onEditStreakDate} />
       <div className="card" style={{ marginTop: 14 }}>
-        <b>Recovery periods</b>
-        <div className="tl">
-          {per.map((p, i) => (
-            <span key={i} style={{ display: 'contents' }}>
-              <i style={{ flex: Math.max(1, p.days) }} />
-              {i < per.length - 1 ? <i className="r" style={{ flex: 0.4 }} /> : null}
-            </span>
-          ))}
-        </div>
-        <p className="s" style={{ marginTop: 10 }}>
-          {per.length} period{per.length > 1 ? 's' : ''}. A reset ends a period. It never erases the ones before it.
+        <b>Your journey</b>
+        <p className="s" style={{ margin: '4px 0 6px' }}>
+          Every sober streak counts — even the ones that ended. Resetting starts a new line, it never
+          erases the ones above it.
         </p>
+        {[...past].reverse().map((p, i) => (
+          <div key={p.from + p.to + i} className="log-item">
+            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <span>
+                <b>{p.days}</b> day{p.days === 1 ? '' : 's'} sober
+              </span>
+              <span className="m">
+                {fmt(p.from)} – {fmt(p.to)}
+              </span>
+            </div>
+          </div>
+        ))}
+        <div className="log-item">
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span>
+              <span className="live-dot" aria-hidden="true" /> <b>{d}</b> day{d === 1 ? '' : 's'} and
+              counting
+            </span>
+            <span className="m">{data.since ? `since ${fmt(data.since)}` : 'current streak'}</span>
+          </div>
+        </div>
+        {totalDays > d ? (
+          <p className="s" style={{ marginTop: 10 }}>
+            <b style={{ color: 'var(--tx)' }}>{totalDays} days</b> sober altogether. That progress is
+            yours no matter what.
+          </p>
+        ) : null}
       </div>
       <div className="row" style={{ marginTop: 12 }}>
         <div className="card stat">

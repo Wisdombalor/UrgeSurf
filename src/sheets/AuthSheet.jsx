@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import Sheet from '../components/Sheet'
+import Sheet, { CloseButton } from '../components/Sheet'
 import { LogoLockup } from '../components/Logo'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { isValidEmail } from '../lib/helpers'
@@ -66,11 +66,13 @@ function OtpBoxes({ value, onChange, disabled }) {
   )
 }
 
-export default function AuthSheet({ onAuthed, onGuest }) {
+export default function AuthSheet({ initialStep = 'form', closable, onAuthed, onGuest, onClose }) {
   const [mode, setMode] = useState('login') // login | signup
-  const [step, setStep] = useState('form') // form | code
+  const [step, setStep] = useState(initialStep) // form | code | forgot | sent | reset
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [newPass, setNewPass] = useState('')
+  const [confirmPass, setConfirmPass] = useState('')
   const [code, setCode] = useState(Array(CODE_LEN).fill(''))
   const [cooldown, setCooldown] = useState(0)
   const [busy, setBusy] = useState(false)
@@ -168,10 +170,53 @@ export default function AuthSheet({ onAuthed, onGuest }) {
     }
   }
 
+  async function handleForgot() {
+    setError('')
+    if (!isValidEmail(email)) {
+      setError('Enter the email address of your account first.')
+      return
+    }
+    setBusy(true)
+    try {
+      const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: window.location.origin,
+      })
+      if (err) throw err
+      setStep('sent')
+    } catch (err) {
+      setError(err?.message || 'Could not send the reset email. Try again in a moment.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleReset() {
+    setError('')
+    if (newPass.length < 6) {
+      setError('New password needs at least 6 characters.')
+      return
+    }
+    if (newPass !== confirmPass) {
+      setError('The two passwords do not match.')
+      return
+    }
+    setBusy(true)
+    try {
+      const { error: err } = await supabase.auth.updateUser({ password: newPass })
+      if (err) throw err
+      onAuthed()
+    } catch (err) {
+      setError(err?.message || 'Could not set the new password. Request a fresh link and try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <Sheet>
       {step === 'form' ? (
         <>
+          {closable ? <CloseButton onClose={onClose} label="Close" /> : null}
           <div style={{ marginBottom: 4 }}>
             <LogoLockup />
           </div>
@@ -231,6 +276,15 @@ export default function AuthSheet({ onAuthed, onGuest }) {
           <button className="cta" disabled={backendDown || busy} onClick={handlePasswordAuth}>
             {busy ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create account'}
           </button>
+          {mode === 'login' ? (
+            <button
+              className="ghost"
+              style={{ padding: '10px 0 0' }}
+              onClick={() => { setStep('forgot'); setError('') }}
+            >
+              Forgot password?
+            </button>
+          ) : null}
 
           <div className="card" style={{ marginTop: 14 }}>
             <b>Just looking around?</b>
@@ -243,8 +297,10 @@ export default function AuthSheet({ onAuthed, onGuest }) {
             </button>
           </div>
         </>
-      ) : (
+      ) : null}
+      {step === 'code' ? (
         <>
+          {closable ? <CloseButton onClose={onClose} label="Close" /> : null}
           <h1>Check your email</h1>
           <p className="s" style={{ marginTop: 6 }}>
             We sent a 6-digit code to <b style={{ color: 'var(--tx)' }}>{email.trim()}</b>. Enter it below
@@ -282,7 +338,106 @@ export default function AuthSheet({ onAuthed, onGuest }) {
             Use a different email
           </button>
         </>
-      )}
+      ) : null}
+      {step === 'forgot' ? (
+        <>
+          {closable ? <CloseButton onClose={onClose} label="Close" /> : null}
+          <div style={{ marginBottom: 4 }}>
+            <LogoLockup />
+          </div>
+          <h1>Reset password</h1>
+          <p className="s" style={{ marginTop: 6 }}>
+            Enter your account email and we will send you a link to choose a new password.
+          </p>
+          <h2>Email</h2>
+          <input
+            className="in"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            placeholder="name@example.com"
+            value={email}
+            onChange={(e) => { setEmail(e.target.value); if (error) setError('') }}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleForgot() }}
+          />
+          {error ? (
+            <span role="alert" className="field-error">
+              {error}
+            </span>
+          ) : null}
+          <button className="cta" disabled={backendDown || busy} onClick={handleForgot}>
+            {busy ? 'Sending…' : 'Email me a reset link'}
+          </button>
+          <button
+            className="ghost"
+            onClick={() => { setStep('form'); setError('') }}
+          >
+            Back to log in
+          </button>
+        </>
+      ) : null}
+      {step === 'sent' ? (
+        <>
+          {closable ? <CloseButton onClose={onClose} label="Close" /> : null}
+          <div style={{ marginBottom: 4 }}>
+            <LogoLockup />
+          </div>
+          <h1>Check your inbox</h1>
+          <p className="s" style={{ marginTop: 6 }}>
+            If an account exists for <b style={{ color: 'var(--tx)' }}>{email.trim()}</b>, a reset link is
+            on its way. Open it on this device, then choose a new password here.
+          </p>
+          <button
+            className="ghost"
+            onClick={() => { setStep('form'); setError('') }}
+          >
+            Back to log in
+          </button>
+        </>
+      ) : null}
+      {step === 'reset' ? (
+        <>
+          <div style={{ marginBottom: 4 }}>
+            <LogoLockup />
+          </div>
+          <h1>Choose a new password</h1>
+          <p className="s" style={{ marginTop: 6 }}>
+            Almost done — set a fresh password to get back into your account.
+          </p>
+          <h2>New password</h2>
+          <input
+            className="in"
+            type="password"
+            autoComplete="new-password"
+            placeholder="6+ characters"
+            value={newPass}
+            onChange={(e) => { setNewPass(e.target.value); if (error) setError('') }}
+          />
+          <h2>Confirm new password</h2>
+          <input
+            className="in"
+            type="password"
+            autoComplete="new-password"
+            placeholder="Repeat the new password"
+            value={confirmPass}
+            onChange={(e) => { setConfirmPass(e.target.value); if (error) setError('') }}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleReset() }}
+          />
+          {error ? (
+            <span role="alert" className="field-error">
+              {error}
+            </span>
+          ) : null}
+          <button className="cta" disabled={busy} onClick={handleReset}>
+            {busy ? 'Saving…' : 'Set new password'}
+          </button>
+          {onClose ? (
+            <button className="ghost" onClick={onClose}>
+              Cancel
+            </button>
+          ) : null}
+        </>
+      ) : null}
     </Sheet>
   )
 }

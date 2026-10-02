@@ -117,10 +117,14 @@ export default function App() {
         setSheet({ name: 'onboard' })
       }
     })()
-    const sub = supabase?.auth.onAuthStateChange((_event, session) => {
+    const sub = supabase?.auth.onAuthStateChange((event, session) => {
       const u = session?.user || null
       setUser(u)
       if (u) setGuest(false)
+      // User opened the email reset link — show the new-password screen.
+      if (event === 'PASSWORD_RECOVERY') {
+        setSheet({ name: 'auth', reset: true })
+      }
     })
     return () => {
       cancelled = true
@@ -289,7 +293,10 @@ export default function App() {
   function handleGuest() {
     authReturn.current = null
     setGuest(true)
-    setSheet({ name: 'onboard' })
+    // Already-onboarded guests who hit the login wall (e.g. via Share) must
+    // land back where they were — never back on the onboarding screen.
+    if (!dataRef.current.onboarded) setSheet({ name: 'onboard' })
+    else closeSheet()
   }
 
   function handleAuthed() {
@@ -542,7 +549,17 @@ export default function App() {
           />
         )
       case 'auth':
-        return <AuthSheet onAuthed={handleAuthed} onGuest={handleGuest} />
+        return (
+          <AuthSheet
+            initialStep={sheet.reset ? 'reset' : 'form'}
+            // First-launch users must pick login or guest — no skipping.
+            // Everyone else (e.g. via Share) gets an X to back out.
+            closable={data.onboarded}
+            onAuthed={handleAuthed}
+            onGuest={handleGuest}
+            onClose={closeSheet}
+          />
+        )
       case 'share':
         return (
           <ShareStorySheet
