@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import BottomNav from './components/BottomNav'
 import Toast from './components/Toast'
+import { LogoMark } from './components/Logo'
+import Landing from './pages/Landing'
 import Home from './pages/Home'
 import Recovery from './pages/Recovery'
 import Community from './pages/Community'
 import Support from './pages/Support'
+import Admin from './pages/Admin'
 import UrgeStrengthSheet from './sheets/UrgeStrengthSheet'
 import UrgeHelpSheet from './sheets/UrgeHelpSheet'
 import BreatheSheet from './sheets/BreatheSheet'
@@ -29,7 +32,11 @@ import ProfileSheet from './sheets/ProfileSheet'
 import AuthSheet from './sheets/AuthSheet'
 import { clearData, loadData, persistLocal } from './lib/storage'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
-import { dsince, sendFeedbackEmail, sendReportEmail, sendSupportRequest, today } from './lib/helpers'
+import { isAdminEmail } from './lib/constants'
+import { dsince, sendFeedbackEmail, sendSupportRequest, today } from './lib/helpers'
+
+// Code-split: keeps the main bundle lean, toolbar loads on demand.
+const Agentation = lazy(() => import('agentation').then((m) => ({ default: m.Agentation })))
 
 const GUEST_KEY = 'rc_guest'
 
@@ -69,6 +76,9 @@ export default function App() {
   const [user, setUser] = useState(null)
   const [isGuest, setIsGuest] = useState(() => readGuestFlag())
   const [theme, setTheme] = useState(() => readTheme())
+  // False until the stored session has been resolved — nothing protected
+  // renders before this flips, so a refresh never flashes the dashboard.
+  const [authReady, setAuthReady] = useState(false)
 
   const dataRef = useRef(data)
   const dbRef = useRef(null)
@@ -126,8 +136,9 @@ export default function App() {
     }
   }, [])
 
-  // First launch: restore Supabase session, then route to auth → onboarding.
-  // Returning onboarded users (guest or signed-in) go straight in.
+  // First launch: resolve the stored session, then route.
+  // New visitors see the landing page (no auto sheets). Onboarding opens
+  // only when it hasn't been completed yet.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -143,9 +154,7 @@ export default function App() {
       if (cancelled) return
       setUser(sessionUser)
       if (sessionUser) setGuest(false)
-      if (!dataRef.current.onboarded && !sessionUser && !readGuestFlag()) {
-        setSheet({ name: 'auth' })
-      } else if (!dataRef.current.onboarded) {
+      if (!dataRef.current.onboarded && (sessionUser || readGuestFlag())) {
         setSheet({ name: 'onboard' })
       } else if (sessionUser) {
         // Returning from Google OAuth — resume where the user left off.
@@ -158,9 +167,9 @@ export default function App() {
         }
         if (ret === 'share') {
           setSheet({ name: 'share' })
-          showToast('Signed in — you can post now')
+          showToast('Signed in. You can post now')
         }
-      } else {
+      } else if (dataRef.current.onboarded) {
         // Onboarded, no session (e.g. refresh while on the login wall) —
         // reopen login instead of dropping to the dashboard.
         let ret = null
@@ -171,11 +180,23 @@ export default function App() {
         }
         if (ret === 'share') setSheet({ name: 'auth' })
       }
+      if (!cancelled) setAuthReady(true)
     })()
     const sub = supabase?.auth.onAuthStateChange((event, session) => {
       const u = session?.user || null
       setUser(u)
-      if (u) setGuest(false)
+      if (u) {
+        setGuest(false)
+        // Fresh sign-in (not the initial session restore) for someone who
+        // already onboarded — welcome them back on the dashboard.
+        if (event === 'SIGNED_IN' && dataRef.current.onboarded) {
+          showToast(`Welcome back${dataRef.current.name ? ', ' + dataRef.current.name : ''}!`)
+        }
+      }
+      // User opened the email reset link — show the new-password screen.
+      if (event === 'PASSWORD_RECOVERY') {
+        setSheet({ name: 'auth', reset: true })
+      }
     })
     return () => {
       cancelled = true
@@ -337,8 +358,40 @@ export default function App() {
   }
 
   async function handleReportSubmit(post, reason, details) {
-    await sendReportEmail({ post, reason, details, reporter: dataRef.current.name || '(anonymous app user)' })
-    showToast('Reported. The admin was notified by email.')
+    const key = post?.id || post?.t
+    const reporter = dataRef.current.name || '(anonymous app user)'
+    const report = {
+      id: Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+      t: Date.now(),
+      postId: String(key ?? ''),
+      postText: post?.text || '',
+      postWho: post?.who || '',
+      reporter,
+      reporterId: user?.id || uidRef.current || null,
+      reason,
+      details: details || '',
+      status: 'open',
+    }
+    // Local copy first — admins on this device see it even offline.
+    updateData((prev) => ({ ...prev, reports: [report, ...(prev.reports || [])].slice(0, 200) }))
+    // Server copy for admins on any device (best effort).
+    try {
+      if (supabase && isSupabaseConfigured) {
+        const { error } = await supabase.from('reports').insert({
+          post_id: report.postId,
+          post_text: report.postText,
+          post_who: report.postWho,
+          reporter: report.reporter,
+          reporter_id: report.reporterId,
+          reason: report.reason,
+          details: report.details,
+        })
+        if (error) throw error
+      }
+    } catch {
+      // local copy still recorded — admin on this device can act on it
+    }
+    showToast('Post reported successfully.')
   }
 
   async function handleFeedbackSubmit({ name, email, message }) {
@@ -372,6 +425,28 @@ export default function App() {
     closeSheet()
   }
 
+  function handleAuthed(info) {
+    const signupName = (info?.name || '').trim()
+    setGuest(false)
+    try {
+      sessionStorage.removeItem('rc_auth_return')
+    } catch {
+      // ignore
+    }
+    // Name captured at sign-up carries over — onboarding won't ask again.
+    if (signupName && !dataRef.current.name) updateData({ name: signupName })
+    if (!dataRef.current.onboarded) {
+      setSheet({ name: 'onboard' })
+    } else if (authReturn.current === 'share') {
+      authReturn.current = null
+      setSheet({ name: 'share' })
+      showToast('Signed in. You can post now')
+    } else {
+      closeSheet()
+      showToast('Signed in')
+    }
+  }
+
   function handleShareClick() {
     if (!user) {
       // Guests must log in before they can share — take them there instantly,
@@ -396,7 +471,7 @@ export default function App() {
       // ignore
     }
     setUser(null)
-    setGuest(true)
+    setGuest(false)
     try {
       sessionStorage.removeItem('rc_auth_return')
     } catch {
@@ -404,13 +479,13 @@ export default function App() {
     }
     authReturn.current = null
     setTab('home')
-    // Logging out lands on the login screen — community posts stay put.
-    // Locked: no X to dismiss, pick Google or continue as a guest.
-    setSheet({ name: 'auth', lock: true })
-    showToast("Signed out. Log in again any time.")
+    // Logging out lands on the landing page — community posts stay put.
+    closeSheet()
+    showToast('Signed out.')
   }
 
-  // Delete my data: wipe this device and go back to the login screen.
+  // Delete my data: wipe this device and go back to the landing page,
+  // where the guest starts over as new (landing → guest → onboarding).
   async function handleDeleteAll() {
     try {
       await supabase?.auth.signOut()
@@ -435,8 +510,9 @@ export default function App() {
     dataRef.current = fresh
     setData(fresh)
     // Community feed stays — only this device's data was wiped.
+    // Landing page takes it from here (guest starts over as new).
     setTab('home')
-    setSheet({ name: 'auth', lock: true })
+    closeSheet()
     showToast('Your data was deleted. You are signed out.')
   }
 
@@ -470,18 +546,96 @@ export default function App() {
     // Drop only this user's posts from the feed — everyone else's stay.
     setPosts((prev) => prev.filter((p) => p.owner !== u?.id))
     setTab('home')
-    setSheet({ name: 'auth', lock: true })
+    closeSheet()
     showToast('Account data deleted. You are signed out.')
   }
 
-  function handleDeleteShared(id) {
-    updateData((prev) => ({ ...prev, mine: prev.mine.filter((x) => (x.id || x.t) !== id) }))
+  async function handleDeleteShared(id) {
+    const key = String(id ?? '')
+    updateData((prev) => ({ ...prev, mine: prev.mine.filter((x) => String(x.id || x.t) !== key) }))
+    setPosts((prev) => prev.filter((x) => String(x.id || x.t) !== key))
+    updateData((prev) => ({ ...prev, savedTips: (prev.savedTips || []).filter((x) => String(x.id || x.t) !== key) }))
+    try {
+      if (supabase && isSupabaseConfigured && user) {
+        await supabase.from('posts').delete().eq('id', key)
+      }
+    } catch {
+      // local copies already removed
+    }
     showToast('Story deleted')
   }
 
   function handleDeletePrivate(t) {
     updateData((prev) => ({ ...prev, stories: prev.stories.filter((x) => x.t !== t) }))
     showToast('Journal entry deleted')
+  }
+
+  function handleToggleSave(post) {
+    const key = String(post?.id || post?.t || '')
+    if (!key) return
+    const saved = (dataRef.current.savedTips || []).some((x) => String(x.id || x.t) === key)
+    if (saved) {
+      updateData((prev) => ({ ...prev, savedTips: (prev.savedTips || []).filter((x) => String(x.id || x.t) !== key) }))
+      showToast('Removed from saved tips')
+    } else {
+      const snap = {
+        id: post.id || post.t,
+        t: post.t,
+        text: post.text,
+        who: post.who || '',
+        cat: post.cat || 'Story',
+        media: post.media || [],
+        soberDays: post.soberDays ?? null,
+        owner: post.owner || '',
+        savedAt: Date.now(),
+      }
+      updateData((prev) => ({ ...prev, savedTips: [snap, ...(prev.savedTips || [])].slice(0, 100) }))
+      showToast('Saved to your tips')
+    }
+  }
+
+  // Admin: take down a reported post everywhere this device controls,
+  // then clear the report. Server rows go through RLS (admin allowlist).
+  async function handleAdminTakedown(report) {
+    const key = String(report?.postId || '')
+    if (key) {
+      try {
+        if (supabase && isSupabaseConfigured) {
+          await supabase.from('reports').delete().eq('id', report.id).catch(() => {})
+        }
+      } catch {
+        // fall through to local cleanup
+      }
+      try {
+        if (supabase && isSupabaseConfigured) {
+          await supabase.from('posts').delete().eq('id', key)
+        }
+      } catch {
+        // local copies still removed below
+      }
+      updateData((prev) => ({
+        ...prev,
+        mine: (prev.mine || []).filter((x) => String(x.id || x.t) !== key),
+        savedTips: (prev.savedTips || []).filter((x) => String(x.id || x.t) !== key),
+        reports: (prev.reports || []).filter((r) => r.id !== report.id && String(r.postId) !== key),
+      }))
+      setPosts((prev) => prev.filter((x) => String(x.id || x.t) !== key))
+    } else {
+      updateData((prev) => ({ ...prev, reports: (prev.reports || []).filter((r) => r.id !== report.id) }))
+    }
+    showToast('Post taken down')
+  }
+
+  async function handleAdminDismiss(report) {
+    try {
+      if (supabase && isSupabaseConfigured && report?.id) {
+        await supabase.from('reports').delete().eq('id', report.id)
+      }
+    } catch {
+      // local copy still cleared below
+    }
+    updateData((prev) => ({ ...prev, reports: (prev.reports || []).filter((r) => r.id !== report?.id) }))
+    showToast('Report dismissed')
   }
 
   function handleToggleGuideStep(blockerName, k, total) {
@@ -517,7 +671,7 @@ export default function App() {
         .select('id,created_at,text,who,sober_days,owner_id')
         .then(({ data: rows, error }) => {
           if (error || !rows?.length) {
-            showToast('Could not publish — saved on this device only')
+            showToast("Couldn't publish. Saved on this device only")
             return
           }
           const r = rows[0]
@@ -643,11 +797,13 @@ export default function App() {
       case 'auth':
         return (
           <AuthSheet
-            // First-launch users must pick login or guest — no skipping.
-            // Same after logout/delete: the sheet is locked (no X) until
-            // they choose Google or continue as a guest.
+            key={'auth-' + (sheet.mode || 'login') + (sheet.reset ? '-reset' : '')}
+            initialStep={sheet.reset ? 'reset' : 'form'}
+            initialMode={sheet.mode === 'signup' ? 'signup' : 'login'}
+            // Landing and first-launch users must pick — no skipping.
             // Via Share it stays dismissable so guests can back out.
             closable={data.onboarded && !sheet.lock}
+            onAuthed={handleAuthed}
             onGuest={handleGuest}
             onClose={handleAuthClose}
           />
@@ -703,6 +859,7 @@ export default function App() {
       case 'onboard':
         return (
           <OnboardingSheet
+            initialName={data.name}
             onComplete={(v) => {
               updateData((prev) => ({ ...prev, ...v, onboarded: true }))
               setSheet({ name: 'welcome' })
@@ -732,61 +889,102 @@ export default function App() {
     }
   }
 
+  // Landing + sheets only until someone is signed in or chose guest —
+  // the dashboard never renders (or flashes) before that, on any refresh.
+  const showLanding = authReady && !user && !isGuest
+  const isAdmin = !!user && isAdminEmail(user.email)
+
+  if (!authReady) {
+    return (
+      <div id="app">
+        <main className="splash" aria-label="Loading">
+          <LogoMark size={56} />
+          <p className="s">Loading UrgeSurf…</p>
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div id="app">
       <main>
-        {tab === 'home' ? (
-          <Home
-            data={data}
-            user={user}
-            isGuest={!user}
-            theme={theme}
-            onToggleTheme={toggleTheme}
-            onLogin={() => setSheet({ name: 'auth' })}
-            onSignOut={handleSignOut}
-            onOpenUrge={() => setSheet({ name: 'urge' })}
-            onOpenProfile={() => setSheet({ name: 'profile' })}
-            onOpenBlockers={() => setSheet({ name: 'blk' })}
-            onResetStreak={() => setSheet({ name: 'relapse' })}
-            onSaveCheckin={handleSaveCheckin}
-            onGoRecovery={() => setTab('rec')}
+        {showLanding ? (
+          <Landing
+            onSignup={() => setSheet({ name: 'auth', mode: 'signup' })}
+            onLogin={() => setSheet({ name: 'auth', mode: 'login' })}
+            onGuest={handleGuest}
           />
-        ) : null}
-        {tab === 'rec' ? (
-          <Recovery
-            data={data}
-            onLogUrge={() => setSheet({ name: 'urge' })}
-            onResetStreak={() => setSheet({ name: 'relapse' })}
-            onEditStreakDate={() => setSheet({ name: 'profile' })}
-          />
-        ) : null}
-        {tab === 'com' ? (
-          <Community
-            data={data}
-            posts={posts}
-            isGuest={!user}
-            onLogin={() => setSheet({ name: 'auth' })}
-            onShare={handleShareClick}
-            onToast={showToast}
-            onDeleteShared={handleDeleteShared}
-            onDeletePrivate={handleDeletePrivate}
-            onReport={(post) => setSheet({ name: 'report', post })}
-          />
-        ) : null}
-        {tab === 'sup' ? (
-          <Support
-            data={data}
-            onOpenBlockers={() => setSheet({ name: 'blk' })}
-            onOpenTalk={() => setSheet({ name: 'talk' })}
-            onOpenTrusted={() => setSheet({ name: 'trusted', add: false })}
-            onOpenCrisis={() => setSheet({ name: 'crisis' })}
-            onContactAdmin={() => setSheet({ name: 'feedback' })}
-          />
-        ) : null}
+        ) : (
+          <>
+            {tab === 'home' ? (
+              <Home
+                data={data}
+                user={user}
+                isGuest={!user}
+                theme={theme}
+                onToggleTheme={toggleTheme}
+                onLogin={() => setSheet({ name: 'auth' })}
+                onSignOut={handleSignOut}
+                onOpenUrge={() => setSheet({ name: 'urge' })}
+                onOpenProfile={() => setSheet({ name: 'profile' })}
+                onOpenBlockers={() => setSheet({ name: 'blk' })}
+                onResetStreak={() => setSheet({ name: 'relapse' })}
+                onSaveCheckin={handleSaveCheckin}
+                onGoRecovery={() => setTab('rec')}
+              />
+            ) : null}
+            {tab === 'rec' ? (
+              <Recovery
+                data={data}
+                onLogUrge={() => setSheet({ name: 'urge' })}
+                onResetStreak={() => setSheet({ name: 'relapse' })}
+                onEditStreakDate={() => setSheet({ name: 'profile' })}
+              />
+            ) : null}
+            {tab === 'com' ? (
+              <Community
+                data={data}
+                posts={posts}
+                isGuest={!user}
+                onLogin={() => setSheet({ name: 'auth' })}
+                onShare={handleShareClick}
+                onToast={showToast}
+                onDeleteShared={handleDeleteShared}
+                onDeletePrivate={handleDeletePrivate}
+                onReport={(post) => setSheet({ name: 'report', post })}
+                onToggleSave={handleToggleSave}
+              />
+            ) : null}
+            {tab === 'sup' ? (
+              <Support
+                data={data}
+                onOpenBlockers={() => setSheet({ name: 'blk' })}
+                onOpenTalk={() => setSheet({ name: 'talk' })}
+                onOpenTrusted={() => setSheet({ name: 'trusted', add: false })}
+                onOpenCrisis={() => setSheet({ name: 'crisis' })}
+                onContactAdmin={() => setSheet({ name: 'feedback' })}
+              />
+            ) : null}
+            {tab === 'admin' ? (
+              <Admin
+                user={user}
+                isAdmin={isAdmin}
+                localReports={data.reports}
+                onLogin={() => setSheet({ name: 'auth', mode: 'login' })}
+                onTakedown={handleAdminTakedown}
+                onDismiss={handleAdminDismiss}
+                onToast={showToast}
+              />
+            ) : null}
+          </>
+        )}
       </main>
-      <BottomNav tab={tab} onChange={setTab} />
+      {showLanding ? null : <BottomNav tab={tab} onChange={setTab} showAdmin={isAdmin} />}
       {renderSheet()}
       <Toast message={toastMsg} />
+      <Suspense fallback={null}>
+        <Agentation />
+      </Suspense>
     </div>
   )
 }

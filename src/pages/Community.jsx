@@ -51,7 +51,7 @@ function SoberBadge({ days }) {
   )
 }
 
-function PostCard({ post, you, onToast, onReport, onDelete, liked, onToggleLike }) {
+function PostCard({ post, you, saved, onToast, onReport, onDelete, onToggleSave, liked, onToggleLike }) {
   return (
     <div className="card post enter">
       <div className="m">
@@ -74,7 +74,9 @@ function PostCard({ post, you, onToast, onReport, onDelete, liked, onToggleLike 
         >
           Support
         </button>
-        <button onClick={() => onToast('Saved to your coping tips')}>Save tip</button>
+        <button aria-pressed={!!saved} onClick={() => onToggleSave(post)}>
+          {saved ? 'Unsaved tip' : 'Save tip'}
+        </button>
         <button onClick={() => onReport(post)}>Report</button>
         {you && onDelete ? <button onClick={() => onDelete(post)}>Delete</button> : null}
       </div>
@@ -99,7 +101,7 @@ function FilterRow({ label, options, value, onPick }) {
   )
 }
 
-export default function Community({ data, posts, isGuest, onLogin, onShare, onToast, onDeleteShared, onDeletePrivate, onReport }) {
+export default function Community({ data, posts, isGuest, onLogin, onShare, onToast, onDeleteShared, onDeletePrivate, onReport, onToggleSave }) {
   const [liked, setLiked] = useState({})
   const [filter, setFilter] = useState('all')
   const [showRules, setShowRules] = useState(false)
@@ -118,6 +120,8 @@ export default function Community({ data, posts, isGuest, onLogin, onShare, onTo
     }
   })
   const mineKeys = new Set(data.mine.map((x) => x.id || x.t))
+  const savedTips = [...(data.savedTips || [])].sort((a, b) => (b.savedAt || b.t) - (a.savedAt || a.t))
+  const savedKeys = new Set(savedTips.map((x) => x.id || x.t))
   const mine = all.filter((x) => mineKeys.has(x.id || x.t))
   const priv = [...(data.stories || [])].sort((a, b) => b.t - a.t)
 
@@ -201,19 +205,25 @@ export default function Community({ data, posts, isGuest, onLogin, onShare, onTo
       </div>
 
       <div style={{ marginTop: 12 }}>
-        {['all', 'mine', 'private'].map((f) => (
+        {['all', 'mine', 'saved', 'private'].map((f) => (
           <button
             key={f}
             className="chip"
             aria-pressed={filter === f}
             onClick={() => setFilter(f)}
           >
-            {f === 'all' ? `All (${all.length})` : f === 'mine' ? `Mine (${mine.length})` : `Private (${priv.length})`}
+            {f === 'all'
+              ? `All (${all.length})`
+              : f === 'mine'
+                ? `Mine (${mine.length})`
+                : f === 'saved'
+                  ? `Saved (${savedTips.length})`
+                  : `Private (${priv.length})`}
           </button>
         ))}
       </div>
 
-      {filter !== 'private' ? (
+      {filter !== 'private' && filter !== 'saved' ? (
         <div className="card" style={{ marginTop: 10 }}>
           <button
             className="ghost"
@@ -307,6 +317,8 @@ export default function Community({ data, posts, isGuest, onLogin, onShare, onTo
                     key={key}
                     post={x}
                     you={mineKeys.has(key)}
+                    saved={savedKeys.has(key)}
+                    onToggleSave={onToggleSave}
                     liked={liked[key]}
                     onToggleLike={(on) => setLiked((l) => ({ ...l, [key]: on }))}
                     onToast={onToast}
@@ -351,6 +363,8 @@ export default function Community({ data, posts, isGuest, onLogin, onShare, onTo
                     key={key}
                     post={x}
                     you
+                    saved={savedKeys.has(key)}
+                    onToggleSave={onToggleSave}
                     liked={liked[key]}
                     onToggleLike={(on) => setLiked((l) => ({ ...l, [key]: on }))}
                     onToast={onToast}
@@ -382,6 +396,38 @@ export default function Community({ data, posts, isGuest, onLogin, onShare, onTo
             <b>Nothing from you yet</b>
             <p className="s" style={{ marginTop: 6 }}>
               Anonymous posts appear here with an “Anonymous · You” label so you can always find them.
+            </p>
+          </div>
+        )
+      ) : null}
+
+      {filter === 'saved' ? (
+        savedTips.length ? (
+          <div className="posts-grid">
+            {savedTips.map((x) => {
+              const key = x.id || x.t
+              return (
+                <PostCard
+                  key={key}
+                  post={x}
+                  you={mineKeys.has(key)}
+                  saved
+                  onToggleSave={onToggleSave}
+                  liked={liked[key]}
+                  onToggleLike={(on) => setLiked((l) => ({ ...l, [key]: on }))}
+                  onToast={onToast}
+                  onReport={onReport}
+                  onDelete={mineKeys.has(key) ? () => askDelete('shared', key) : null}
+                />
+              )
+            })}
+          </div>
+        ) : (
+          <div className="card" style={{ marginTop: 14, textAlign: 'center' }}>
+            <b>No saved tips yet</b>
+            <p className="s" style={{ marginTop: 6 }}>
+              Tap “Save tip” on any story and it will wait for you here — even after you refresh or log
+              back in.
             </p>
           </div>
         )

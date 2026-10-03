@@ -1,12 +1,13 @@
-import { TABS } from '../lib/constants'
+import { ADMIN_TAB, TABS } from '../lib/constants'
 import Icon from './Icon'
 
-const TAB_ICONS = { home: 'home', rec: 'chart', com: 'users', sup: 'buoy' }
+const TAB_ICONS = { home: 'home', rec: 'chart', com: 'users', sup: 'buoy', admin: 'shield' }
 
-export default function BottomNav({ tab, onChange }) {
+export default function BottomNav({ tab, onChange, showAdmin }) {
+  const tabs = showAdmin ? [...TABS, ADMIN_TAB] : TABS
   return (
     <nav>
-      {TABS.map(([key, label]) => (
+      {tabs.map(([key, label]) => (
         <button
           key={key}
           data-t={key}

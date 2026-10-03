@@ -38,7 +38,7 @@ The site uses Aeonik, which is a licensed font. Add your `.woff2` files to `publ
 All three forms post via FormSubmit AJAX using `FORMSUBMIT_TOKEN` (`src/lib/constants.js`) so the inbox address is never in the form action. `SUPPORT_EMAIL` is only used for the `mailto:` fallback.
 
 - **In-house support** (`Request support` sheet): emailed to the admin with name, message, reply-by, contact, urgent flag. When the user chooses email, `_replyto` is set and FormSubmit sends them an automatic receipt (`_autoresponse`) — the waiting screen tells them to check spam/promotions if it is missing.
-- **Community reports** (`Report` on any post): emailed to the admin with reason, details, and the reported post text/id.
+- **Community reports** (`Report` on any post): stored in the Supabase `reports` table (plus a local copy) and reviewed in the Admin dashboard — no email involved.
 - **Contact the admin** (`Support → Improve this app`): user sends name (optional), their email (required), and a message; the admin can reply directly and the user gets a thank-you receipt.
 
 ### If the admin inbox gets nothing
@@ -52,6 +52,12 @@ All three forms post via FormSubmit AJAX using `FORMSUBMIT_TOKEN` (`src/lib/cons
 ## Data
 
 Outside claude.ai everything saves in the browser only (`localStorage`). The shared community feed needs a real backend (Supabase or Firebase).
+
+## Supabase setup (posts, reports, admin)
+
+1. In Supabase Dashboard → SQL Editor, run `supabase/schema.sql` once. It creates `posts` and `reports` with row-level security: anyone can read posts and file reports; only signed-in users can post; only admins can take down posts or manage reports.
+2. Replace `admin@example.com` in `schema.sql` with your admin's login email, and set the same address in `VITE_ADMIN_EMAILS` (see `.env.example`).
+3. Log in with that account — an **Admin** tab appears with reported posts (each with its post ID), review, takedown, and dismiss actions.
 
 ## Before launch
 

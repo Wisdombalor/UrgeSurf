@@ -5,6 +5,19 @@ export const TABS = [
   ['sup', 'Support'],
 ]
 
+export const ADMIN_TAB = ['admin', 'Admin']
+
+// Google-account emails allowed into the admin area. Keep in sync with
+// the allowlist in supabase/schema.sql and VITE_ADMIN_EMAILS.
+export const ADMIN_EMAILS = (import.meta.env?.VITE_ADMIN_EMAILS || '')
+  .split(',')
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean)
+
+export function isAdminEmail(email) {
+  return !!email && ADMIN_EMAILS.includes(String(email).trim().toLowerCase())
+}
+
 export const TRIGGERS = [
   'Stress',
   'Boredom',
@@ -302,6 +315,8 @@ export const DEFAULT_DATA = {
   interests: [],
   gs: {},
   mine: [],
+  savedTips: [],
+  reports: [],
   req: null,
   avatar: '',
   onboarded: false,

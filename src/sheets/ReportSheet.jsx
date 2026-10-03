@@ -35,7 +35,7 @@ export default function ReportSheet({ post, onClose, onSubmit }) {
         <p style={{ fontSize: 14, lineHeight: 1.5 }}>{(post?.text || '').slice(0, 300)}</p>
       </div>
       <p className="s" style={{ marginTop: 10 }}>
-        Reporting emails the admin directly. The post stays up until a moderator reviews it.
+        Reports go to the admin team for review. The post stays up until a moderator reviews it.
       </p>
       <h2>Why are you reporting it?</h2>
       <div>

@@ -6,9 +6,11 @@ import { AmountInput, CountrySelect, CurrencySelect } from '../components/ui'
 import { today } from '../lib/helpers'
 import { ASSESS_OPTIONS, ASSESS_QUESTIONS, scoreAssessment } from '../lib/assessment'
 
-export default function OnboardingSheet({ onComplete }) {
+export default function OnboardingSheet({ initialName = '', onComplete }) {
   const [step, setStep] = useState('info')
-  const [name, setName] = useState('')
+  const [name, setName] = useState(initialName)
+  // Name already captured at sign-up — don't ask again.
+  const nameKnown = !!initialName.trim()
   const [date, setDate] = useState(today())
   const [country, setCountry] = useState('NG')
   const [sel, setSel] = useState([])
@@ -25,7 +27,7 @@ export default function OnboardingSheet({ onComplete }) {
   }
 
   function handleInfoNext() {
-    if (!name.trim()) {
+    if (!nameKnown && !name.trim()) {
       setNameError('Please enter your name or a nickname to continue.')
       return
     }
@@ -84,30 +86,34 @@ export default function OnboardingSheet({ onComplete }) {
           <div style={{ marginBottom: 4 }}>
             <LogoLockup />
           </div>
-          <h1>Welcome to UrgeSurf</h1>
+          <h1>Welcome to UrgeSurf{nameKnown || name.trim() ? `, ${nameKnown ? initialName.trim() : name.trim()}` : ''}</h1>
           <p className="s" style={{ marginTop: 6 }}>
             This stays private to you. You can change it later.
           </p>
-          <h2>What should we call you?</h2>
-          <input
-            className="in"
-            placeholder="Your name or a nickname"
-            value={name}
-            aria-invalid={!!nameError}
-            aria-describedby={nameError ? 'onboard-name-error' : undefined}
-            onChange={(e) => {
-              setName(e.target.value)
-              if (nameError && e.target.value.trim()) setNameError('')
-            }}
-            onBlur={() => {
-              if (!name.trim()) setNameError('Please enter your name or a nickname to continue.')
-            }}
-          />
-          {nameError ? (
-            <span id="onboard-name-error" role="alert" className="field-error">
-              {nameError}
-            </span>
-          ) : null}
+          {nameKnown ? null : (
+            <>
+              <h2>What should we call you?</h2>
+              <input
+                className="in"
+                placeholder="Your name or a nickname"
+                value={name}
+                aria-invalid={!!nameError}
+                aria-describedby={nameError ? 'onboard-name-error' : undefined}
+                onChange={(e) => {
+                  setName(e.target.value)
+                  if (nameError && e.target.value.trim()) setNameError('')
+                }}
+                onBlur={() => {
+                  if (!name.trim()) setNameError('Please enter your name or a nickname to continue.')
+                }}
+              />
+              {nameError ? (
+                <span id="onboard-name-error" role="alert" className="field-error">
+                  {nameError}
+                </span>
+              ) : null}
+            </>
+          )}
           <h2>Your sober date</h2>
           <p className="s">The day of your last bet. Not sure? Use today.</p>
           <input className="in" type="date" max={today()} value={date} onChange={(e) => setDate(e.target.value)} />

@@ -36,7 +36,43 @@
   --urgetx: #1a0a07;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  --ease-spring: cubic-bezier(0.2, 1.35, 0.4, 1);
+  /* Motion tokens (motion-system, Subtle). Durations pair with one easing
+     each. Project mapping: --ease-out matches ease-out-quint,
+     --ease-in-out matches ease-in-out-quart. */
+  --duration-xshort: 75ms;
+  --duration-short: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+  --duration-xslow: 600ms;
+  --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
+  --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-cubic: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  --ease-in-out-cubic: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --ease-in-out-quart: cubic-bezier(0.77, 0, 0.175, 1);
+  /* Spacing system */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  /* Border radii */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 22px;
+  --r-pill: 99px;
+  /* Control heights */
+  --h-in: 54px;
+  --h-btn: 52px;
+  /* Type scale */
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 15px;
+  --fs-lg: 17px;
   box-sizing: border-box;
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -126,8 +162,17 @@ p.s {
 .card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 16px;
+  border-radius: var(--r-lg);
+  padding: 18px;
+}
+.post-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-xs);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 6px;
+  word-break: break-all;
 }
 .row {
   display: flex;
@@ -167,10 +212,11 @@ p.s {
     0 1px 2px rgba(0, 0, 0, 0.18),
     0 8px 18px -10px rgba(0, 0, 0, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.22);
-  transition: transform 140ms var(--ease-out);
+  transition: transform var(--duration-short) var(--ease-out-cubic);
 }
 .urge:active {
-  transform: scale(0.97);
+  transform: scale(0.98);
+  transition-duration: var(--duration-xshort);
 }
 .urge-icon {
   flex: none;
@@ -201,12 +247,9 @@ p.s {
   line-height: 1;
   opacity: 0.85;
   transform: translateX(0);
-  transition: transform 160ms var(--ease-out);
+  transition: transform var(--duration-short) var(--ease-out-cubic);
 }
 @media (hover: hover) and (pointer: fine) {
-  .urge:hover {
-    transform: translateY(-1px);
-  }
   .urge:hover .urge-arrow {
     transform: translateX(3px);
   }
@@ -247,16 +290,17 @@ p.s {
   justify-content: center;
   color: #06201b;
   transition:
-    background-color 140ms var(--ease-out),
-    border-color 140ms var(--ease-out),
-    transform 140ms var(--ease-out);
+    transform var(--duration-short) var(--ease-out-cubic),
+    background-color var(--duration-xshort) var(--ease-out-quad),
+    border-color var(--duration-xshort) var(--ease-out-quad);
 }
 .agree-box[data-on="true"] {
   background: var(--acc);
   border-color: var(--acc);
 }
 .agree-row:active .agree-box {
-  transform: scale(0.92);
+  transform: scale(0.95);
+  transition-duration: var(--duration-xshort);
 }
 nav {
   display: flex;
@@ -281,8 +325,8 @@ nav {
   padding: 3px 16px;
   border-radius: 14px;
   transition:
-    background-color 160ms var(--ease-out),
-    color 160ms var(--ease-out);
+    background-color var(--duration-xshort) var(--ease-out-quad),
+    color var(--duration-xshort) var(--ease-out-quad);
 }
 .tab-label {
   white-space: nowrap;
@@ -379,16 +423,21 @@ nav {
 }
 .in {
   width: 100%;
-  padding: 13px;
-  border-radius: 14px;
+  min-height: var(--h-in);
+  padding: 14px var(--sp-4);
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--card);
   color: var(--tx);
   font: inherit;
+  font-size: 16px;
+  line-height: 1.45;
   margin-top: 8px;
   display: block;
   outline: none;
-  transition: border-color 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
+  transition:
+    border-color var(--duration-xshort) var(--ease-out-quad),
+    box-shadow var(--duration-xshort) var(--ease-out-quad);
 }
 .in::placeholder {
   color: var(--mut);
@@ -423,10 +472,79 @@ nav {
 .cta:disabled {
   opacity: 0.45;
 }
+.cta-outline {
+  background: transparent;
+  border: 1.5px solid var(--acc);
+  color: var(--acc);
+}
+.splash {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  animation: fadeOnly var(--duration-short) var(--ease-out-cubic) both;
+}
+.landing {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 100%;
+  padding: 12px 0 calc(28px + env(safe-area-inset-bottom, 0px));
+  animation: fadeUp var(--duration-normal) var(--ease-out-cubic) both;
+}
+.landing-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.landing-title {
+  font-size: clamp(30px, 7vw, 44px);
+  line-height: 1.08;
+}
+.landing-sub {
+  font-size: 16px;
+}
+.landing-feats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.landing-feat {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.landing-feat:last-child {
+  border-bottom: 0;
+}
+.landing-feat b {
+  display: block;
+  font-size: 16px;
+}
+.landing-feat .s {
+  margin-top: 2px;
+}
+.landing-ctas {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+}
+.landing-ctas .cta {
+  margin-top: 10px;
+}
+.landing-note {
+  margin-top: 6px;
+  text-align: center;
+}
 .cta {
   width: 100%;
-  padding: 16px;
-  border-radius: 16px;
+  min-height: var(--h-btn);
+  padding: 15px var(--sp-4);
+  border-radius: var(--r-md);
   background: var(--acc);
   color: #06201b;
   font-weight: 800;
@@ -516,6 +634,7 @@ nav {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  padding-bottom: 12px;
 }
 .big {
   font-size: clamp(56px, 15vw, 84px);
@@ -546,7 +665,7 @@ input[type="range"] {
   font-size: 13px;
   font-weight: 800;
   white-space: nowrap;
-  transition: left 120ms var(--ease-out);
+  /* Follows the slider thumb directly (duration-none while dragging). */
 }
 .urge-bubble::after {
   content: '';
@@ -779,10 +898,14 @@ a.cta {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 140ms var(--ease-out), border-color 140ms var(--ease-out);
+  transition:
+    transform var(--duration-short) var(--ease-out-cubic),
+    border-color var(--duration-xshort) var(--ease-out-quad),
+    background-color var(--duration-xshort) var(--ease-out-quad);
 }
 .icon-btn:active {
-  transform: scale(0.94);
+  transform: scale(0.95);
+  transition-duration: var(--duration-xshort);
 }
 .menu-backdrop {
   position: fixed;
@@ -800,7 +923,7 @@ a.cta {
   min-width: 252px;
   padding: 8px;
   transform-origin: top right;
-  animation: menuIn 170ms var(--ease-out) both;
+  animation: menuIn var(--duration-normal) var(--ease-out-cubic) both;
 }
 @keyframes menuIn {
   from {
@@ -865,10 +988,12 @@ a.cta {
   border-radius: 12px;
   font-size: 15px;
   font-weight: 600;
-  transition: transform 140ms var(--ease-out), background-color 140ms var(--ease-out);
+  transition:
+    transform var(--duration-short) var(--ease-out-cubic),
+    background-color var(--duration-xshort) var(--ease-out-quad);
 }
 .menu-item:active {
-  transform: scale(0.98);
+  background-color: color-mix(in srgb, var(--acc) 16%, transparent);
 }
 @media (hover: hover) and (pointer: fine) {
   .menu-item:hover {
@@ -915,25 +1040,7 @@ a.cta {
   align-self: center;
   text-align: center;
   box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.55);
-  animation: onboardIn 640ms var(--ease-spring) both;
-}
-.pop-card > * {
-  animation: fadeUp 420ms var(--ease-out) both;
-}
-.pop-card > *:nth-child(2) {
-  animation-delay: 70ms;
-}
-.pop-card > *:nth-child(3) {
-  animation-delay: 140ms;
-}
-.pop-card > *:nth-child(4) {
-  animation-delay: 210ms;
-}
-.pop-card > *:nth-child(5) {
-  animation-delay: 280ms;
-}
-.pop-card > *:nth-child(6) {
-  animation-delay: 350ms;
+  animation: fadeUp var(--duration-normal) var(--ease-out-cubic) both;
 }
 .pop-emoji {
   width: 64px;
@@ -946,15 +1053,15 @@ a.cta {
   font-size: 30px;
   background: var(--acc);
   color: #06201b;
-  animation: popSettle 480ms var(--ease-spring) both;
+  animation: fadeUp var(--duration-normal) var(--ease-out-cubic) both;
 }
 /* motion: transform + opacity only, custom easings, sub-300ms UI */
 .sheet {
   opacity: 1;
   transform: translateY(0);
   transition:
-    opacity 260ms var(--ease-out),
-    transform 260ms var(--ease-out);
+    opacity var(--duration-normal) var(--ease-out-cubic),
+    transform var(--duration-normal) var(--ease-out-cubic);
 }
 @starting-style {
   .sheet {
@@ -963,47 +1070,36 @@ a.cta {
   }
 }
 .anim-in {
-  animation: fadeUp 240ms var(--ease-out) both;
+  animation: fadeUp var(--duration-normal) var(--ease-out-cubic) both;
 }
 .post.enter {
-  animation: fadeUp 240ms var(--ease-out) both;
-}
-.post.enter:nth-child(2) {
-  animation-delay: 40ms;
-}
-.post.enter:nth-child(3) {
-  animation-delay: 80ms;
-}
-.post.enter:nth-child(4) {
-  animation-delay: 120ms;
-}
-.post.enter:nth-child(5) {
-  animation-delay: 160ms;
-}
-.post.enter:nth-child(6) {
-  animation-delay: 200ms;
+  animation: fadeUp var(--duration-normal) var(--ease-out-cubic) both;
 }
 .cta,
 .danger,
 .ghost,
 .chip {
   transition:
-    transform 140ms var(--ease-out),
-    opacity 140ms var(--ease-out),
-    border-color 140ms var(--ease-out),
-    background-color 140ms var(--ease-out);
+    transform var(--duration-short) var(--ease-out-cubic),
+    opacity var(--duration-short) var(--ease-out-cubic),
+    border-color var(--duration-xshort) var(--ease-out-quad),
+    background-color var(--duration-xshort) var(--ease-out-quad);
 }
 .cta:active,
-.danger:active,
+.danger:active {
+  transform: scale(0.98);
+  transition-duration: var(--duration-xshort);
+}
 .chip:active {
   transform: scale(0.97);
+  transition-duration: var(--duration-xshort);
 }
 .toast {
   opacity: 1;
   transform: translateY(0);
   transition:
-    opacity 200ms var(--ease-out),
-    transform 200ms var(--ease-out);
+    opacity var(--duration-normal) var(--ease-out-cubic),
+    transform var(--duration-normal) var(--ease-out-cubic);
 }
 @starting-style {
   .toast {
@@ -1011,34 +1107,10 @@ a.cta {
     transform: translateY(10px);
   }
 }
-@keyframes popSettle {
-  from {
-    opacity: 0;
-    transform: scale(0.92) translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-@keyframes onboardIn {
-  from {
-    opacity: 0;
-    transform: scale(0.9) translateY(26px);
-  }
-  60% {
-    opacity: 1;
-    transform: scale(1.015) translateY(-2px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
 @keyframes fadeUp {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -1059,22 +1131,35 @@ a.cta {
     transition-duration: 0.01ms;
   }
   .pop-card,
-  .pop-card > *,
   .pop-emoji,
   .anim-in,
+  .landing,
   .menu-pop,
   .post.enter {
-    animation: fadeOnly 180ms var(--ease-out) both;
+    animation: fadeOnly var(--duration-short) var(--ease-out-cubic) both;
   }
-  .live-dot {
+.otp-row {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+.otp-box {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 800;
+  padding: 12px 4px;
+}
+.live-dot {
     animation: none;
   }
   .ball {
-    animation: breatheCalm 4s ease-in-out infinite;
+    animation: breatheCalm 4s var(--ease-in-out-quart) infinite;
   }
 }
-@keyframes breatheCalm {
-  0%,
+@keyframes breatheCalm {  0%,
   100% {
     opacity: 0.75;
   }
