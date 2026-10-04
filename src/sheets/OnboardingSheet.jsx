@@ -28,7 +28,7 @@ export default function OnboardingSheet({ initialName = '', onComplete }) {
 
   function handleInfoNext() {
     if (!nameKnown && !name.trim()) {
-      setNameError('Please enter your name or a nickname to continue.')
+      setNameError('Please tell us your name to continue.')
       return
     }
     if (!date) return
@@ -92,10 +92,10 @@ export default function OnboardingSheet({ initialName = '', onComplete }) {
           </p>
           {nameKnown ? null : (
             <>
-              <h2>What should we call you?</h2>
+              <h2>What is your name?</h2>
               <input
                 className="in"
-                placeholder="Your name or a nickname"
+                placeholder="Your name"
                 value={name}
                 aria-invalid={!!nameError}
                 aria-describedby={nameError ? 'onboard-name-error' : undefined}
@@ -104,7 +104,7 @@ export default function OnboardingSheet({ initialName = '', onComplete }) {
                   if (nameError && e.target.value.trim()) setNameError('')
                 }}
                 onBlur={() => {
-                  if (!name.trim()) setNameError('Please enter your name or a nickname to continue.')
+                  if (!name.trim()) setNameError('Please tell us your name to continue.')
                 }}
               />
               {nameError ? (
@@ -152,6 +152,9 @@ export default function OnboardingSheet({ initialName = '', onComplete }) {
           </button>
           <button className="ghost" onClick={() => { setResult(null); setStep('spend') }}>
             Skip for now
+          </button>
+          <button className="ghost" style={{ paddingTop: 0 }} onClick={() => setStep('info')}>
+            Back
           </button>
         </>
       ) : null}
@@ -216,6 +219,9 @@ export default function OnboardingSheet({ initialName = '', onComplete }) {
           </div>
           <button className="cta" onClick={() => setStep('spend')}>
             Continue
+          </button>
+          <button className="ghost" style={{ paddingTop: 0 }} onClick={() => setStep('test-offer')}>
+            Back
           </button>
         </>
       ) : null}

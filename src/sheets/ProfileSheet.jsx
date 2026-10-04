@@ -3,7 +3,7 @@ import Sheet, { CloseButton } from '../components/Sheet'
 import { AmountInput, CountrySelect, CurrencySelect } from '../components/ui'
 import { readFilesAsDataUrls, today } from '../lib/helpers'
 
-export default function ProfileSheet({ data, user, isGuest, onClose, onSave, onDelete, onDeleteAccount, onSignOut, onLogin }) {
+export default function ProfileSheet({ data, user, isGuest, isAdmin, onClose, onSave, onDelete, onDeleteAccount, onSignOut, onLogin }) {
   const signedIn = Boolean(user) && !isGuest
   const [name, setName] = useState(data.name || '')
   const [date, setDate] = useState(data.since || today())
@@ -163,6 +163,18 @@ export default function ProfileSheet({ data, user, isGuest, onClose, onSave, onD
           <p className="s" style={{ marginTop: 4 }}>
             {user.email} · you can post to the community.
           </p>
+          {isAdmin ? (
+            <button
+              className="cta"
+              style={{ marginTop: 10, padding: '10px 14px', fontSize: 14 }}
+              onClick={() => {
+                window.location.hash = '#/admin'
+                onClose()
+              }}
+            >
+              Open admin dashboard
+            </button>
+          ) : null}
           <button className="ghost" style={{ padding: '8px 0 0', textAlign: 'left' }} onClick={onSignOut}>
             Log out
           </button>

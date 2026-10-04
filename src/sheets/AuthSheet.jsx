@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import Sheet, { CloseButton } from '../components/Sheet'
+import Sheet, { BackButton, CloseButton } from '../components/Sheet'
 import { LogoLockup } from '../components/Logo'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
-import { isValidEmail } from '../lib/helpers'
+import { isValidEmail, passwordIssues } from '../lib/helpers'
 
 const CODE_LEN = 6
 const RESEND_COOLDOWN = 30
@@ -114,14 +114,20 @@ export default function AuthSheet({ initialStep = 'form', initialMode = 'login',
     setError('')
     const trimmedName = name.trim()
     if (mode === 'signup' && !trimmedName) {
-      setError('Tell us your name or a nickname so we don’t have to ask again later.')
+      setError('Please tell us your name.')
       return
     }
     if (!isValidEmail(email)) {
       setError('Enter a valid email address, e.g. name@example.com.')
       return
     }
-    if (password.length < 6) {
+    if (mode === 'signup') {
+      const weak = passwordIssues(password)
+      if (weak.length > 0) {
+        setError(`That password is weak — add ${weak.join(', ')}.`)
+        return
+      }
+    } else if (password.length < 6) {
       setError('Password needs at least 6 characters.')
       return
     }
@@ -131,7 +137,7 @@ export default function AuthSheet({ initialStep = 'form', initialMode = 'login',
         const { data, error: err } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { data: { name: trimmedName } },
+          options: { data: { name: trimmedName }, emailRedirectTo: window.location.origin },
         })
         if (err) throw err
         if (data?.session) {
@@ -223,8 +229,9 @@ export default function AuthSheet({ initialStep = 'form', initialMode = 'login',
 
   async function handleReset() {
     setError('')
-    if (newPass.length < 6) {
-      setError('New password needs at least 6 characters.')
+    const weak = passwordIssues(newPass)
+    if (weak.length > 0) {
+      setError(`That password is weak — add ${weak.join(', ')}.`)
       return
     }
     if (newPass !== confirmPass) {
@@ -247,7 +254,7 @@ export default function AuthSheet({ initialStep = 'form', initialMode = 'login',
     <Sheet>
       {step === 'form' ? (
         <>
-          {closable ? <CloseButton onClose={onClose} label="Close" /> : null}
+          {closable ? <CloseButton onClose={onClose} label="Close" /> : <BackButton onBack={onClose} label="Back" />}
           <div style={{ marginBottom: 4 }}>
             <LogoLockup />
           </div>
@@ -328,8 +335,8 @@ export default function AuthSheet({ initialStep = 'form', initialMode = 'login',
               <input
                 className="in"
                 type="text"
-                autoComplete="nickname"
-                placeholder="Your name or a nickname"
+                autoComplete="given-name"
+                placeholder="e.g. Ada"
                 value={name}
                 onChange={(e) => { setName(e.target.value); if (error) setError('') }}
                 onKeyDown={(e) => { if (e.key === 'Enter') handlePasswordAuth() }}
@@ -341,14 +348,15 @@ export default function AuthSheet({ initialStep = 'form', initialMode = 'login',
             className="in"
             type="password"
             autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-            placeholder={mode === 'signup' ? 'Create a password (6+ characters)' : 'Your password'}
+            placeholder={mode === 'signup' ? '8+ characters, upper, lower, number & symbol' : 'Your password'}
             value={password}
             onChange={(e) => { setPassword(e.target.value); if (error) setError('') }}
             onKeyDown={(e) => { if (e.key === 'Enter') handlePasswordAuth() }}
           />
           {mode === 'signup' ? (
             <p className="s" style={{ marginTop: 8 }}>
-              We will email you a 6-digit code to verify it is really you.
+              Use 8+ characters with an uppercase letter, a lowercase letter, a number, and a
+              symbol. We will email you a 6-digit code to verify it is really you.
             </p>
           ) : null}
           {error ? (
@@ -383,11 +391,14 @@ export default function AuthSheet({ initialStep = 'form', initialMode = 'login',
       ) : null}
       {step === 'code' ? (
         <>
-          {closable ? <CloseButton onClose={onClose} label="Close" /> : null}
+          {closable ? <CloseButton onClose={onClose} label="Close" /> : <BackButton onBack={() => { setStep('form'); setError('') }} label="Back" />}
           <h1>Check your email</h1>
           <p className="s" style={{ marginTop: 6 }}>
-            We sent a 6-digit code to <b style={{ color: 'var(--tx)' }}>{email.trim()}</b>. Enter it below
-            to verify your account.
+            We sent a confirmation to <b style={{ color: 'var(--tx)' }}>{email.trim()}</b>. Click the
+            link in that email to finish signing in.
+          </p>
+          <p className="s" style={{ marginTop: 6 }}>
+            Got a 6-digit code instead? Enter it below.
           </p>
           <div style={{ marginTop: 16 }}>
             <OtpBoxes value={code} onChange={(next) => { setCode(next); if (error) setError('') }} disabled={busy} />
@@ -398,10 +409,10 @@ export default function AuthSheet({ initialStep = 'form', initialMode = 'login',
             </span>
           ) : null}
           <button className="cta" disabled={!codeComplete || busy} onClick={handleVerify}>
-            {busy ? 'Verifying…' : 'Verify'}
+            {busy ? 'Verifying…' : 'Verify code'}
           </button>
           <p className="s" style={{ marginTop: 12, textAlign: 'center' }}>
-            Didn&apos;t get a code?{' '}
+            Didn&apos;t get the email?{' '}
             {cooldown > 0 ? (
               <>Resend in {cooldown}s</>
             ) : (
@@ -410,7 +421,7 @@ export default function AuthSheet({ initialStep = 'form', initialMode = 'login',
                 style={{ display: 'inline', width: 'auto', padding: 0, color: 'var(--acc)', fontWeight: 700 }}
                 onClick={handleResend}
               >
-                Resend
+                Resend confirmation
               </button>
             )}
           </p>
@@ -492,10 +503,14 @@ export default function AuthSheet({ initialStep = 'form', initialMode = 'login',
             className="in"
             type="password"
             autoComplete="new-password"
-            placeholder="6+ characters"
+            placeholder="8+ characters, upper, lower, number & symbol"
             value={newPass}
             onChange={(e) => { setNewPass(e.target.value); if (error) setError('') }}
           />
+          <p className="s" style={{ marginTop: 8 }}>
+            Same rule as sign-up: 8+ characters with an uppercase letter, a lowercase letter, a
+            number, and a symbol. Weak passwords are rejected.
+          </p>
           <h2>Confirm new password</h2>
           <input
             className="in"

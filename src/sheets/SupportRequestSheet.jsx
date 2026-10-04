@@ -79,8 +79,9 @@ export default function SupportRequestSheet({ data, onClose, onSubmit }) {
         </span>
       ) : null}
       <button
-        className="chip"
+        className="linklike"
         aria-pressed={urgent}
+        aria-expanded={urgent}
         style={{ marginTop: 12 }}
         onClick={() => setUrgent((u) => !u)}
       >

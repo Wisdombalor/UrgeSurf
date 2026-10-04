@@ -66,6 +66,19 @@ export function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email || '').trim())
 }
 
+// Password strength: at least 8 characters with one of each class.
+// Returns the list of missing requirements (empty = strong enough).
+export function passwordIssues(pw) {
+  const v = pw || ''
+  const issues = []
+  if (v.length < 8) issues.push('at least 8 characters')
+  if (!/[a-z]/.test(v)) issues.push('a lowercase letter')
+  if (!/[A-Z]/.test(v)) issues.push('an uppercase letter')
+  if (!/\d/.test(v)) issues.push('a number')
+  if (!/[^A-Za-z0-9]/.test(v)) issues.push('a symbol (e.g. !@#$)')
+  return issues
+}
+
 export function validateSupport({ text, how, contact }) {
   const errors = {}
   if (!text.trim() || text.trim().length < 10) {
@@ -135,22 +148,79 @@ export function containsContactInfo(text) {
   return false
 }
 
+const IMAGE_RAW_LIMIT = 15 * 1024 * 1024
+const IMAGE_MAX_DIM = 1280
+const IMAGE_QUALITY = 0.82
+
+// Photos from modern phones are several MB — far too big for localStorage
+// and slow to render. Downscale to a bounded JPEG so uploads actually work
+// and persist instead of blowing the storage quota.
+function downscaleImage(file) {
+  return new Promise((resolve, reject) => {
+    if (file.size > IMAGE_RAW_LIMIT) {
+      reject(new Error(`“${file.name}” is too large. Pick a photo under 15MB.`))
+      return
+    }
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    const cleanup = () => {
+      try {
+        URL.revokeObjectURL(url)
+      } catch {
+        // ignore
+      }
+    }
+    img.onload = () => {
+      try {
+        let width = img.naturalWidth || img.width
+        let height = img.naturalHeight || img.height
+        const scale = Math.min(1, IMAGE_MAX_DIM / Math.max(width, height))
+        width = Math.max(1, Math.round(width * scale))
+        height = Math.max(1, Math.round(height * scale))
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+        cleanup()
+        resolve({ name: file.name, type: 'image/jpeg', url: canvas.toDataURL('image/jpeg', IMAGE_QUALITY) })
+      } catch {
+        cleanup()
+        reject(new Error(`Could not process “${file.name}”. Try a JPEG or PNG photo.`))
+      }
+    }
+    img.onerror = () => {
+      cleanup()
+      reject(new Error(`Could not read “${file.name}”. Try a JPEG or PNG photo.`))
+    }
+    img.src = url
+  })
+}
+
+function readRawFile(file) {
+  return new Promise((resolve, reject) => {
+    const rd = new FileReader()
+    rd.onload = () => resolve({ name: file.name, type: file.type, url: rd.result })
+    rd.onerror = () => reject(new Error(`Could not read “${file.name}”.`))
+    rd.readAsDataURL(file)
+  })
+}
+
 export function readFilesAsDataUrls(files, { maxEach = 3 * 1024 * 1024, maxCount = 4 } = {}) {
   const list = [...(files || [])].slice(0, maxCount)
   return Promise.all(
-    list.map(
-      (f) =>
-        new Promise((resolve, reject) => {
-          if (f.size > maxEach) {
-            reject(new Error(`“${f.name}” is over ${Math.round(maxEach / 1024 / 1024)}MB. Pick a smaller file.`))
-            return
-          }
-          const rd = new FileReader()
-          rd.onload = () => resolve({ name: f.name, type: f.type, url: rd.result })
-          rd.onerror = () => reject(new Error(`Could not read “${f.name}”.`))
-          rd.readAsDataURL(f)
-        }),
-    ),
+    list.map((f) => {
+      // Raster photos go through the downscaler so they fit in storage;
+      // videos and other files use the raw reader with the size cap.
+      if (f.type.startsWith('image/') && f.type !== 'image/gif' && f.type !== 'image/svg+xml') {
+        return downscaleImage(f)
+      }
+      if (f.size > maxEach) {
+        return Promise.reject(
+          new Error(`“${f.name}” is over ${Math.round(maxEach / 1024 / 1024)}MB. Pick a smaller file.`),
+        )
+      }
+      return readRawFile(f)
+    }),
   )
 }
 

@@ -5,6 +5,7 @@ const REASONS = ['Spam or scam', 'Gambling content', 'Harassment or hate', 'Pers
 
 export default function ReportSheet({ post, onClose, onSubmit }) {
   const [reason, setReason] = useState('')
+  const [target, setTarget] = useState('post') // post | user
   const [details, setDetails] = useState('')
   const [error, setError] = useState('')
   const [sending, setSending] = useState(false)
@@ -17,7 +18,7 @@ export default function ReportSheet({ post, onClose, onSubmit }) {
     setError('')
     setSending(true)
     try {
-      await onSubmit(reason, details.trim())
+      await onSubmit({ reason, details: details.trim(), target })
     } catch {
       setError('Could not send the report. Check your connection and try again.')
       setSending(false)
@@ -37,7 +38,16 @@ export default function ReportSheet({ post, onClose, onSubmit }) {
       <p className="s" style={{ marginTop: 10 }}>
         Reports go to the admin team for review. The post stays up until a moderator reviews it.
       </p>
-      <h2>Why are you reporting it?</h2>
+      <h2>What are you reporting?</h2>
+      <div>
+        <button className="chip" aria-pressed={target === 'post'} onClick={() => setTarget('post')}>
+          This post
+        </button>
+        <button className="chip" aria-pressed={target === 'user'} onClick={() => setTarget('user')}>
+          The author
+        </button>
+      </div>
+      <h2>Why are you reporting {target === 'post' ? 'it' : 'them'}?</h2>
       <div>
         {REASONS.map((r) => (
           <button key={r} className="chip" aria-pressed={reason === r} onClick={() => setReason(r)}>
@@ -58,7 +68,7 @@ export default function ReportSheet({ post, onClose, onSubmit }) {
         onChange={(e) => setDetails(e.target.value)}
       />
       <button className="cta" disabled={sending} onClick={handleSend}>
-        {sending ? 'Sending report…' : 'Send report to admin'}
+        {sending ? 'Sending…' : 'Send report'}
       </button>
     </Sheet>
   )

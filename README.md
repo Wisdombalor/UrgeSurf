@@ -55,9 +55,11 @@ Outside claude.ai everything saves in the browser only (`localStorage`). The sha
 
 ## Supabase setup (posts, reports, admin)
 
-1. In Supabase Dashboard → SQL Editor, run `supabase/schema.sql` once. It creates `posts` and `reports` with row-level security: anyone can read posts and file reports; only signed-in users can post; only admins can take down posts or manage reports.
-2. Replace `admin@example.com` in `schema.sql` with your admin's login email, and set the same address in `VITE_ADMIN_EMAILS` (see `.env.example`).
-3. Log in with that account — an **Admin** tab appears with reported posts (each with its post ID), review, takedown, and dismiss actions.
+1. In Supabase Dashboard → SQL Editor, run `supabase/schema.sql` once (safe to re-run). It creates `posts` (with `mod_state`: active/hidden/removed), `profiles` (with `is_admin` role and `status`: active/suspended/banned), `reports` (type post/user, status pending/reviewed/resolved/dismissed), and the append-only `moderation_log` audit table — all behind row-level security.
+2. First admin (no self-promotion endpoint exists): log in once with the admin account, then in SQL Editor run:
+   `update public.profiles set is_admin = true where email = 'you@example.com';`
+   Set the same address in `VITE_ADMIN_EMAILS` (see `.env.example`).
+3. Log in with that account — an **Admin** tab appears, or visit `#/admin` directly for Dashboard, Reports, Posts, Users, and History. Every admin query and mutation is RLS-gated on the admin role, and every action is audit-logged.
 
 ## Before launch
 

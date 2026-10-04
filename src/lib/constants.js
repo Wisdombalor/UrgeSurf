@@ -7,6 +7,17 @@ export const TABS = [
 
 export const ADMIN_TAB = ['admin', 'Admin']
 
+// Hash routes for the admin area (works on static hosting, no rewrites).
+// #/admin, #/admin/reports, #/admin/posts, #/admin/users, #/admin/history
+export function parseAdminRoute(hash) {
+  const m = (hash || '').match(/^#\/admin(?:\/(\w+))?/)
+  return m ? m[1] || 'dashboard' : null
+}
+
+export function adminHash(sub) {
+  return sub ? `#/admin/${sub}` : '#/admin'
+}
+
 // Google-account emails allowed into the admin area. Keep in sync with
 // the allowlist in supabase/schema.sql and VITE_ADMIN_EMAILS.
 export const ADMIN_EMAILS = (import.meta.env?.VITE_ADMIN_EMAILS || '')

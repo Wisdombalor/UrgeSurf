@@ -12,6 +12,7 @@ export default function Home({
   data,
   user,
   isGuest,
+  accountStatus,
   theme,
   onToggleTheme,
   onLogin,
@@ -85,6 +86,12 @@ export default function Home({
         {greet()}
         {data.name ? ', ' + data.name : ''}
       </p>
+      {accountStatus && accountStatus !== 'active' ? (
+        <div className="error-banner" role="alert">
+          Your account is {accountStatus}. You can read the community but posting is disabled.
+          Contact the admin if you think this is a mistake.
+        </div>
+      ) : null}
       <h1>How are you feeling right now?</h1>
       <button className="urge" onClick={onOpenUrge} aria-label="I'm having an urge. Get help through it.">
         <span className="urge-icon" aria-hidden="true">

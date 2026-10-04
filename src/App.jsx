@@ -7,7 +7,7 @@ import Home from './pages/Home'
 import Recovery from './pages/Recovery'
 import Community from './pages/Community'
 import Support from './pages/Support'
-import Admin from './pages/Admin'
+import AdminArea from './pages/AdminArea'
 import UrgeStrengthSheet from './sheets/UrgeStrengthSheet'
 import UrgeHelpSheet from './sheets/UrgeHelpSheet'
 import BreatheSheet from './sheets/BreatheSheet'
@@ -32,7 +32,7 @@ import ProfileSheet from './sheets/ProfileSheet'
 import AuthSheet from './sheets/AuthSheet'
 import { clearData, loadData, persistLocal } from './lib/storage'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
-import { isAdminEmail } from './lib/constants'
+import { adminHash, isAdminEmail, parseAdminRoute } from './lib/constants'
 import { dsince, sendFeedbackEmail, sendSupportRequest, today } from './lib/helpers'
 
 // Code-split: keeps the main bundle lean, toolbar loads on demand.
@@ -76,9 +76,20 @@ export default function App() {
   const [user, setUser] = useState(null)
   const [isGuest, setIsGuest] = useState(() => readGuestFlag())
   const [theme, setTheme] = useState(() => readTheme())
+  // Account standing from profiles (active | suspended | banned). Posting is
+  // blocked server-side by RLS too — this only shapes the UI messaging.
+  const [myStatus, setMyStatus] = useState('active')
   // False until the stored session has been resolved — nothing protected
   // renders before this flips, so a refresh never flashes the dashboard.
   const [authReady, setAuthReady] = useState(false)
+
+  // Hash route for /admin (null when browsing the app tabs).
+  const [adminRoute, setAdminRoute] = useState(() => parseAdminRoute(window.location.hash))
+  useEffect(() => {
+    const onHash = () => setAdminRoute(parseAdminRoute(window.location.hash))
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
 
   const dataRef = useRef(data)
   const dbRef = useRef(null)
@@ -142,6 +153,21 @@ export default function App() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
+      // Email confirmation / magic-link return (?code=…): finish the
+      // exchange explicitly so link clicks always complete sign-in,
+      // even if the client didn't auto-detect the URL.
+      let justConfirmed = false
+      try {
+        if (supabase && /[?&]code=/.test(window.location.search)) {
+          const { error } = await supabase.auth.exchangeCodeForSession(window.location.href)
+          if (!error) {
+            justConfirmed = true
+            window.history.replaceState(null, '', window.location.pathname)
+          }
+        }
+      } catch {
+        // getSession below still tries
+      }
       let sessionUser = null
       try {
         if (supabase) {
@@ -153,7 +179,24 @@ export default function App() {
       }
       if (cancelled) return
       setUser(sessionUser)
-      if (sessionUser) setGuest(false)
+      if (sessionUser) {
+        setGuest(false)
+        refreshMyStatus(sessionUser.id)
+      }
+      // Google sign-ins carry the account name in metadata — adopt it when
+      // this device doesn't know a name yet, and mirror it to profiles.
+      if (sessionUser && !dataRef.current.name) {
+        const metaName = (
+          sessionUser.user_metadata?.full_name ||
+          sessionUser.user_metadata?.name ||
+          ''
+        ).trim()
+        if (metaName) {
+          updateData({ name: metaName })
+          upsertProfile(sessionUser.id, metaName, sessionUser.email || '')
+        }
+      }
+      if (justConfirmed && sessionUser) showToast('Email confirmed — you are signed in.')
       if (!dataRef.current.onboarded && (sessionUser || readGuestFlag())) {
         setSheet({ name: 'onboard' })
       } else if (sessionUser) {
@@ -187,11 +230,14 @@ export default function App() {
       setUser(u)
       if (u) {
         setGuest(false)
+        refreshMyStatus(u.id)
         // Fresh sign-in (not the initial session restore) for someone who
         // already onboarded — welcome them back on the dashboard.
         if (event === 'SIGNED_IN' && dataRef.current.onboarded) {
           showToast(`Welcome back${dataRef.current.name ? ', ' + dataRef.current.name : ''}!`)
         }
+      } else {
+        setMyStatus('active')
       }
       // User opened the email reset link — show the new-password screen.
       if (event === 'PASSWORD_RECOVERY') {
@@ -218,7 +264,7 @@ export default function App() {
     try {
       const { data, error } = await supabase
         .from('posts')
-        .select('id,created_at,text,who,sober_days,owner_id')
+        .select('id,created_at,text,who,sober_days,owner_id,mod_state')
         .order('created_at', { ascending: false })
         .limit(100)
       if (error) return
@@ -232,6 +278,7 @@ export default function App() {
           media: [],
           soberDays: r.sober_days ?? null,
           owner: r.owner_id || '',
+          modState: r.mod_state || 'active',
         })),
       )
     } catch {
@@ -357,20 +404,28 @@ export default function App() {
     setSheet({ name: 'waiting' })
   }
 
-  async function handleReportSubmit(post, reason, details) {
-    const key = post?.id || post?.t
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+  async function handleReportSubmit(post, { reason, details, target }) {
+    const key = String(post?.id ?? post?.t ?? '')
+    const type = target === 'user' ? 'user' : 'post'
+    const owner = post?.owner || ''
     const reporter = dataRef.current.name || '(anonymous app user)'
     const report = {
       id: Date.now() + '-' + Math.random().toString(36).slice(2, 7),
       t: Date.now(),
-      postId: String(key ?? ''),
+      type,
+      postId: type === 'post' ? key : '',
       postText: post?.text || '',
       postWho: post?.who || '',
+      reportedUserId: type === 'user' && UUID_RE.test(owner) ? owner : null,
+      reportedUserLabel: type === 'user' ? post?.who || owner || 'unknown author' : '',
       reporter,
       reporterId: user?.id || uidRef.current || null,
       reason,
       details: details || '',
-      status: 'open',
+      status: 'pending',
+      actionTaken: '',
     }
     // Local copy first — admins on this device see it even offline.
     updateData((prev) => ({ ...prev, reports: [report, ...(prev.reports || [])].slice(0, 200) }))
@@ -378,21 +433,60 @@ export default function App() {
     try {
       if (supabase && isSupabaseConfigured) {
         const { error } = await supabase.from('reports').insert({
+          type: report.type,
           post_id: report.postId,
           post_text: report.postText,
           post_who: report.postWho,
+          reported_user_id: report.reportedUserId,
           reporter: report.reporter,
           reporter_id: report.reporterId,
           reason: report.reason,
           details: report.details,
+          status: 'pending',
         })
         if (error) throw error
       }
     } catch {
       // local copy still recorded — admin on this device can act on it
     }
-    showToast('Post reported successfully.')
+    showToast('Report submitted.')
   }
+
+  // Append to the moderation audit log (RLS allows admins only).
+  const logModAction = useCallback(
+    async ({ action, targetType, targetId, prevState, newState, note }) => {
+      try {
+        if (!supabase || !isSupabaseConfigured || !user) return
+        await supabase.from('moderation_log').insert({
+          admin_id: user.id,
+          action,
+          target_type: targetType,
+          target_id: String(targetId || ''),
+          prev_state: String(prevState || ''),
+          new_state: String(newState || ''),
+          note: note || '',
+        })
+      } catch {
+        // audit write is best effort — the state change already happened
+      }
+    },
+    [user],
+  )
+
+  // Scrub one post from every local surface (used after takedowns/deletes).
+  const removePostEverywhere = useCallback(
+    (key) => {
+      const k = String(key ?? '')
+      if (!k) return
+      updateData((prev) => ({
+        ...prev,
+        mine: (prev.mine || []).filter((x) => String(x.id || x.t) !== k),
+        savedTips: (prev.savedTips || []).filter((x) => String(x.id || x.t) !== k),
+      }))
+      setPosts((prev) => prev.filter((x) => String(x.id || x.t) !== k))
+    },
+    [updateData],
+  )
 
   async function handleFeedbackSubmit({ name, email, message }) {
     await sendFeedbackEmail({ name, email, message })
@@ -425,6 +519,39 @@ export default function App() {
     closeSheet()
   }
 
+  // Mirror the user's name into the Supabase profiles table so it's always
+  // visible in the dashboard (Table Editor → profiles).
+  const upsertProfile = useCallback(async (uid, name, email) => {
+    try {
+      if (!supabase || !isSupabaseConfigured || !uid) return
+      await supabase.from('profiles').upsert(
+        { id: uid, name: (name || '').trim(), email: (email || '').trim() },
+        { onConflict: 'id' },
+      )
+    } catch {
+      // profile sync is best effort — the app works fully offline
+    }
+  }, [])
+
+  // Refresh this account's standing (suspension/ban is enforced by RLS;
+  // this mirrors it into the UI).
+  const refreshMyStatus = useCallback(async (uid) => {
+    if (!supabase || !isSupabaseConfigured || !uid) {
+      setMyStatus('active')
+      return 'active'
+    }
+    try {
+      const { data, error } = await supabase.from('profiles').select('status').eq('id', uid).single()
+      if (error) throw error
+      const s = data?.status || 'active'
+      setMyStatus(s)
+      return s
+    } catch {
+      setMyStatus('active')
+      return 'active'
+    }
+  }, [])
+
   function handleAuthed(info) {
     const signupName = (info?.name || '').trim()
     setGuest(false)
@@ -435,6 +562,19 @@ export default function App() {
     }
     // Name captured at sign-up carries over — onboarding won't ask again.
     if (signupName && !dataRef.current.name) updateData({ name: signupName })
+    // Record the profile where you can see it in Supabase (profiles table).
+    ;(async () => {
+      try {
+        if (!supabase || !isSupabaseConfigured) return
+        const { data } = await supabase.auth.getUser()
+        const u = data?.user
+        if (u && (signupName || !dataRef.current.name)) {
+          await upsertProfile(u.id, signupName || dataRef.current.name, u.email || '')
+        }
+      } catch {
+        // ignore — profile sync is best effort
+      }
+    })()
     if (!dataRef.current.onboarded) {
       setSheet({ name: 'onboard' })
     } else if (authReturn.current === 'share') {
@@ -448,6 +588,14 @@ export default function App() {
   }
 
   function handleShareClick() {
+    if (myStatus !== 'active' && user) {
+      showToast(
+        myStatus === 'banned'
+          ? 'Your account is banned. Contact the admin to appeal.'
+          : 'Your account is suspended. You can read but not post right now.',
+      )
+      return
+    }
     if (!user) {
       // Guests must log in before they can share — take them there instantly,
       // then drop them back on the share sheet once signed in.
@@ -594,48 +742,93 @@ export default function App() {
     }
   }
 
-  // Admin: take down a reported post everywhere this device controls,
-  // then clear the report. Server rows go through RLS (admin allowlist).
-  async function handleAdminTakedown(report) {
-    const key = String(report?.postId || '')
-    if (key) {
-      try {
-        if (supabase && isSupabaseConfigured) {
-          await supabase.from('reports').delete().eq('id', report.id).catch(() => {})
-        }
-      } catch {
-        // fall through to local cleanup
-      }
-      try {
-        if (supabase && isSupabaseConfigured) {
-          await supabase.from('posts').delete().eq('id', key)
-        }
-      } catch {
-        // local copies still removed below
-      }
-      updateData((prev) => ({
-        ...prev,
-        mine: (prev.mine || []).filter((x) => String(x.id || x.t) !== key),
-        savedTips: (prev.savedTips || []).filter((x) => String(x.id || x.t) !== key),
-        reports: (prev.reports || []).filter((r) => r.id !== report.id && String(r.postId) !== key),
-      }))
-      setPosts((prev) => prev.filter((x) => String(x.id || x.t) !== key))
-    } else {
-      updateData((prev) => ({ ...prev, reports: (prev.reports || []).filter((r) => r.id !== report.id) }))
-    }
-    showToast('Post taken down')
+  // ---- Admin moderation (every mutation is RLS-gated server-side) ----
+
+  // Resolve a report locally (server row handled by callers when remote).
+  function resolveLocalReport(report, status, actionTaken) {
+    updateData((prev) => ({
+      ...prev,
+      reports: (prev.reports || []).map((r) =>
+        r.id === report?.id ? { ...r, status, actionTaken: actionTaken || r.actionTaken || '' } : r,
+      ),
+    }))
   }
 
-  async function handleAdminDismiss(report) {
+  async function setReportStatus(report, status, actionTaken) {
     try {
-      if (supabase && isSupabaseConfigured && report?.id) {
-        await supabase.from('reports').delete().eq('id', report.id)
+      if (supabase && isSupabaseConfigured && report?.remote) {
+        await supabase
+          .from('reports')
+          .update({ status, action_taken: actionTaken || '' })
+          .eq('id', report.id)
       }
     } catch {
-      // local copy still cleared below
+      // local copy still updated below
     }
-    updateData((prev) => ({ ...prev, reports: (prev.reports || []).filter((r) => r.id !== report?.id) }))
-    showToast('Report dismissed')
+    resolveLocalReport(report, status, actionTaken)
+    showToast(`Report marked ${status}`)
+  }
+
+  // Hide / remove / restore a post's moderation state in the database.
+  async function setPostModState(postId, modState, prevState) {
+    const key = String(postId || '')
+    if (!key) return false
+    try {
+      if (supabase && isSupabaseConfigured) {
+        const { error } = await supabase.from('posts').update({ mod_state: modState }).eq('id', key)
+        if (error) throw error
+      }
+    } catch {
+      return false
+    }
+    if (modState !== 'active') removePostEverywhere(key)
+    else fetchPosts()
+    await logModAction({
+      action: modState === 'active' ? 'post_restored' : `post_${modState}`,
+      targetType: 'post',
+      targetId: key,
+      prevState: prevState || '',
+      newState: modState,
+    })
+    return true
+  }
+
+  async function handleAdminRemovePost(reportOrPost) {
+    const key = String(reportOrPost?.postId || reportOrPost?.id || '')
+    if (!key) return
+    const ok = await setPostModState(key, 'removed', reportOrPost?.modState || 'active')
+    if (reportOrPost?.reason) await setReportStatus(reportOrPost, 'resolved', 'post_removed')
+    else if (ok) removePostEverywhere(key)
+    showToast(ok ? 'Post removed' : 'Could not remove post')
+  }
+
+  // Warn / suspend / ban / restore a user. Status persists in profiles and
+  // is enforced by RLS on posting — not just hidden in the UI.
+  async function setUserStanding(targetId, { status, warnings, note, action }) {
+    if (!targetId) return false
+    let prev = ''
+    try {
+      if (supabase && isSupabaseConfigured) {
+        const { data } = await supabase.from('profiles').select('status,warnings').eq('id', targetId).single()
+        prev = data?.status || ''
+        const patch = {}
+        if (status) patch.status = status
+        if (warnings != null) patch.warnings = warnings
+        const { error } = await supabase.from('profiles').update(patch).eq('id', targetId)
+        if (error) throw error
+      }
+    } catch {
+      return false
+    }
+    await logModAction({
+      action,
+      targetType: 'user',
+      targetId,
+      prevState: prev,
+      newState: status || String(warnings ?? ''),
+      note,
+    })
+    return true
   }
 
   function handleToggleGuideStep(blockerName, k, total) {
@@ -668,7 +861,7 @@ export default function App() {
       supabase
         .from('posts')
         .insert({ owner_id: user.id, text, who: who || '', sober_days: dsince(dataRef.current.since) })
-        .select('id,created_at,text,who,sober_days,owner_id')
+        .select('id,created_at,text,who,sober_days,owner_id,mod_state')
         .then(({ data: rows, error }) => {
           if (error || !rows?.length) {
             showToast("Couldn't publish. Saved on this device only")
@@ -684,6 +877,7 @@ export default function App() {
             media: [],
             soberDays: r.sober_days ?? null,
             owner: r.owner_id || '',
+            modState: r.mod_state || 'active',
           }
           setPosts((prev) => [remote, ...prev])
           updateData((prev) => ({ ...prev, mine: [remote, ...prev.mine.filter((x) => (x.id || x.t) !== id)].slice(0, 50) }))
@@ -862,6 +1056,9 @@ export default function App() {
             initialName={data.name}
             onComplete={(v) => {
               updateData((prev) => ({ ...prev, ...v, onboarded: true }))
+              if (user && (v.name || dataRef.current.name)) {
+                upsertProfile(user.id, v.name || dataRef.current.name, user.email || '')
+              }
               setSheet({ name: 'welcome' })
             }}
           />
@@ -872,6 +1069,7 @@ export default function App() {
             data={data}
             user={user}
             isGuest={!user}
+            isAdmin={isAdmin}
             onClose={closeSheet}
             onSave={(v) => {
               updateData(v)
@@ -891,7 +1089,7 @@ export default function App() {
 
   // Landing + sheets only until someone is signed in or chose guest —
   // the dashboard never renders (or flashes) before that, on any refresh.
-  const showLanding = authReady && !user && !isGuest
+  const showLanding = authReady && !user && !isGuest && !adminRoute
   const isAdmin = !!user && isAdminEmail(user.email)
 
   if (!authReady) {
@@ -901,6 +1099,65 @@ export default function App() {
           <LogoMark size={56} />
           <p className="s">Loading UrgeSurf…</p>
         </main>
+      </div>
+    )
+  }
+
+  // Protected /admin area: unauthenticated visitors get the landing page
+  // (with its log-in entry); signed-in non-admins get an access-denied
+  // state. Backend RLS enforces the same boundary on every admin query.
+  if (adminRoute) {
+    return (
+      <div id="app">
+        <main>
+          {!user ? (
+            <Landing
+              onSignup={() => setSheet({ name: 'auth', mode: 'signup' })}
+              onLogin={() => setSheet({ name: 'auth', mode: 'login' })}
+              onGuest={handleGuest}
+            />
+          ) : !isAdmin ? (
+            <div className="card" style={{ marginTop: 12, textAlign: 'center' }}>
+              <b>Admins only</b>
+              <p className="s" style={{ marginTop: 6 }}>
+                {user.email || 'This account'} is not an admin. This area is restricted to the
+                moderation team.
+              </p>
+              <button
+                className="cta"
+                style={{ padding: '12px 14px', fontSize: 15 }}
+                onClick={() => {
+                  window.location.hash = ''
+                }}
+              >
+                Back to the app
+              </button>
+            </div>
+          ) : (
+            <AdminArea
+              user={user}
+              sub={adminRoute}
+              data={data}
+              posts={posts}
+              onToast={showToast}
+              onPostRemoved={removePostEverywhere}
+              onRefreshPosts={fetchPosts}
+              onLogAction={logModAction}
+              onSetReportStatus={setReportStatus}
+              onSetPostState={setPostModState}
+              onSetStanding={setUserStanding}
+              onExit={() => {
+                window.location.hash = ''
+                setTab('home')
+              }}
+            />
+          )}
+        </main>
+        {renderSheet()}
+        <Toast message={toastMsg} />
+        <Suspense fallback={null}>
+          <Agentation />
+        </Suspense>
       </div>
     )
   }
@@ -921,6 +1178,7 @@ export default function App() {
                 data={data}
                 user={user}
                 isGuest={!user}
+                accountStatus={myStatus}
                 theme={theme}
                 onToggleTheme={toggleTheme}
                 onLogin={() => setSheet({ name: 'auth' })}
@@ -965,21 +1223,27 @@ export default function App() {
                 onContactAdmin={() => setSheet({ name: 'feedback' })}
               />
             ) : null}
-            {tab === 'admin' ? (
-              <Admin
-                user={user}
-                isAdmin={isAdmin}
-                localReports={data.reports}
-                onLogin={() => setSheet({ name: 'auth', mode: 'login' })}
-                onTakedown={handleAdminTakedown}
-                onDismiss={handleAdminDismiss}
-                onToast={showToast}
-              />
-            ) : null}
           </>
         )}
       </main>
-      {showLanding ? null : <BottomNav tab={tab} onChange={setTab} showAdmin={isAdmin} />}
+      {showLanding ? null : (
+        <BottomNav
+          tab={tab}
+          onChange={(k) => {
+            if (k === 'admin') window.location.hash = adminHash('')
+            else setTab(k)
+          }}
+          showAdmin={isAdmin}
+          account={{
+            user,
+            name: data.name,
+            email: user?.email,
+            avatar: data.avatar,
+          }}
+          onProfile={() => setSheet({ name: 'profile' })}
+          onAuth={(mode) => setSheet({ name: 'auth', mode })}
+        />
+      )}
       {renderSheet()}
       <Toast message={toastMsg} />
       <Suspense fallback={null}>

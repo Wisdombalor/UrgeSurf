@@ -30,7 +30,7 @@ export default function SupportWaitingSheet({ req, country, onClose, onClear, on
               </p>
             )}
             <p className="s" style={{ marginTop: 6 }}>
-              We cannot promise how fast a human replies, so use the lines below if you need someone now.
+              We cannot promise how fast we would reply, so use the lines below if you need someone now.
             </p>
           </>
         ) : (

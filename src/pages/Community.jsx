@@ -75,7 +75,7 @@ function PostCard({ post, you, saved, onToast, onReport, onDelete, onToggleSave,
           Support
         </button>
         <button aria-pressed={!!saved} onClick={() => onToggleSave(post)}>
-          {saved ? 'Unsaved tip' : 'Save tip'}
+          {saved ? 'Saved' : 'Save tip'}
         </button>
         <button onClick={() => onReport(post)}>Report</button>
         {you && onDelete ? <button onClick={() => onDelete(post)}>Delete</button> : null}
@@ -113,6 +113,9 @@ export default function Community({ data, posts, isGuest, onLogin, onShare, onTo
   const seen = {}
   const all = []
   posts.concat(data.mine).forEach((x) => {
+    // Moderation state is enforced server-side by RLS; this keeps removed
+    // or hidden posts out of any locally cached copies too.
+    if (x.modState && x.modState !== 'active') return
     const k = x.id || x.t
     if (!seen[k]) {
       seen[k] = 1
