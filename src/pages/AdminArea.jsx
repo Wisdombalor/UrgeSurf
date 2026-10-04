@@ -306,15 +306,16 @@ export default function AdminArea({
 
   return (
     <div className="admin-shell">
-      <div className="admin-eyebrow" aria-label="Administration area">
-        <Icon name="shield" size={16} />
-        <span>Administration</span>
-      </div>
-      <div className="row" style={{ alignItems: 'center' }}>
-        <p className="s brand-line">
-          <b style={{ color: 'var(--acc)' }}>Admin</b>
-          <span>moderation · {user.email}</span>
-        </p>
+      <div className="admin-brand" aria-label="Administration area">
+        <span className="admin-shield" aria-hidden="true">
+          <Icon name="shield" size={30} />
+        </span>
+        <span className="admin-brand-text">
+          <b className="admin-title">
+            ADMIN <span className="admin-temp">Temporary</span>
+          </b>
+          <span className="s admin-sub">moderation console · {user.email}</span>
+        </span>
         <button className="icon-btn" aria-label="Back to app" onClick={onExit}>
           <Icon name="chevR" size={24} />
         </button>

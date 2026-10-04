@@ -23,7 +23,7 @@ export default function AccountMenu({ name, email, avatar, isGuest, onProfile, o
   const initial = (name?.trim()?.[0] || (isGuest ? '?' : '🙂')).toUpperCase()
 
   return (
-    <div className="menu-wrap">
+    <div className="menu-wrap" data-guest={isGuest ? 'true' : 'false'}>
       <button
         className="icon-btn menu-trigger"
         aria-label="Open menu"
@@ -39,7 +39,7 @@ export default function AccountMenu({ name, email, avatar, isGuest, onProfile, o
           My profile
         </button>
         {isGuest ? (
-          <button className="account-btn account-btn-accent" onClick={onLogin}>
+          <button className="account-btn account-btn-accent account-btn-auth" onClick={onLogin}>
             <Icon name="logIn" size={18} />
             Log in / Sign up
           </button>
@@ -83,14 +83,7 @@ export default function AccountMenu({ name, email, avatar, isGuest, onProfile, o
                 </span>
                 Log in / Sign up
               </button>
-            ) : (
-              <button className="menu-item menu-item-danger" role="menuitem" onClick={() => go(onSignOut)}>
-                <span className="row-ic" style={{ color: 'var(--urge)' }}>
-                  <Icon name="logOut" size={19} />
-                </span>
-                Log out
-              </button>
-            )}
+            ) : null}
           </div>
         </>
       ) : null}

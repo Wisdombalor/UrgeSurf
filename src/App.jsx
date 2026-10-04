@@ -1065,6 +1065,7 @@ export default function App() {
         return (
           <OnboardingSheet
             initialName={data.name}
+            onBack={handleSignOut}
             onComplete={(v) => {
               updateData((prev) => ({ ...prev, ...v, onboarded: true }))
               if (user && (v.name || dataRef.current.name)) {

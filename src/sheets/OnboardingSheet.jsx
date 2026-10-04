@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import Sheet from '../components/Sheet'
+import Sheet, { BackButton } from '../components/Sheet'
 import { LogoLockup } from '../components/Logo'
 import { INTERESTS_ALL } from '../lib/constants'
 import { AmountInput, CountrySelect, CurrencySelect } from '../components/ui'
 import { today } from '../lib/helpers'
 import { ASSESS_OPTIONS, ASSESS_QUESTIONS, scoreAssessment } from '../lib/assessment'
 
-export default function OnboardingSheet({ initialName = '', onComplete }) {
+export default function OnboardingSheet({ initialName = '', onBack, onComplete }) {
   const [step, setStep] = useState('info')
   const [name, setName] = useState(initialName)
   // Name already captured at sign-up — don't ask again.
@@ -54,12 +54,8 @@ export default function OnboardingSheet({ initialName = '', onComplete }) {
   }
 
   function handleFinish() {
-    const mustEnterSpend = result?.isAddict
+    // Weekly spend is always optional — it only powers the money-saved tracker.
     const spend = Number(weeklySpend)
-    if (mustEnterSpend && (!weeklySpend || !(spend > 0))) {
-      setSpendError('Because your check shows risky patterns, please enter what you usually spend gambling per week. This powers your money-saved tracker.')
-      return
-    }
     if (weeklySpend && !(spend >= 0)) {
       setSpendError('Enter a valid amount, e.g. 5000.')
       return
@@ -83,6 +79,7 @@ export default function OnboardingSheet({ initialName = '', onComplete }) {
     <Sheet>
       {step === 'info' ? (
         <>
+          {onBack ? <BackButton onBack={onBack} label="Back" /> : null}
           <div style={{ marginBottom: 4 }}>
             <LogoLockup />
           </div>
@@ -212,8 +209,8 @@ export default function OnboardingSheet({ initialName = '', onComplete }) {
             <p>{result.blurb}</p>
             {result.isAddict ? (
               <p className="s" style={{ marginTop: 8 }}>
-                Next, you will set your usual weekly gambling spend — this is required so the app can show
-                you exactly how much you are saving every sober day.
+                Next, you can set your usual weekly gambling spend — it powers the money-saved
+                tracker, but it is optional.
               </p>
             ) : null}
           </div>
@@ -230,13 +227,12 @@ export default function OnboardingSheet({ initialName = '', onComplete }) {
         <>
           <h1>Weekly gambling spend</h1>
           <p className="s" style={{ marginTop: 6 }}>
-            {result?.isAddict
-              ? 'Required for your plan: how much do you usually spend gambling in a week? We will show what you save by staying sober.'
-              : 'Roughly how much do you spend gambling in a normal week? We use it to show your money saved. You can skip this.'}
+            Roughly how much do you spend gambling in a normal week? We use it to show your money
+            saved. You can skip this.
           </p>
           <h2>Currency</h2>
           <CurrencySelect value={currency} onChange={setCurrency} />
-          <h2>Amount per week{result?.isAddict ? ' (required)' : ' (optional)'}</h2>
+          <h2>Amount per week (optional)</h2>
           <AmountInput
             value={weeklySpend}
             aria-invalid={!!spendError}
@@ -252,29 +248,27 @@ export default function OnboardingSheet({ initialName = '', onComplete }) {
             </span>
           ) : null}
           <button className="cta" style={{ marginTop: 20 }} onClick={handleFinish}>
-            Start
+            Start my recovery
           </button>
-          {!result?.isAddict ? (
-            <button
-              className="ghost"
-              onClick={() => {
-                setWeeklySpend('')
-                setSpendError('')
-                onComplete({
-                  name: name.trim(),
-                  since: date || today(),
-                  sinceTs: Date.now(),
-                  country,
-                  interests: sel,
-                  assessment: result,
-                  weeklySpend: '',
-                  currency,
-                })
-              }}
-            >
-              Skip spending question
-            </button>
-          ) : null}
+          <button
+            className="ghost"
+            onClick={() => {
+              setWeeklySpend('')
+              setSpendError('')
+              onComplete({
+                name: name.trim(),
+                since: date || today(),
+                sinceTs: Date.now(),
+                country,
+                interests: sel,
+                assessment: result,
+                weeklySpend: '',
+                currency,
+              })
+            }}
+          >
+            Skip spending question
+          </button>
           <button className="ghost" onClick={() => setStep(result ? 'result' : 'test-offer')}>
             Back
           </button>

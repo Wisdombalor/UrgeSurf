@@ -126,6 +126,11 @@ security definer
 set search_path = public
 as $$
 begin
+  -- SQL Editor / service role has no auth.uid(); allow it.
+  if auth.uid() is null then
+    return new;
+  end if;
+
   if (new.is_admin is distinct from old.is_admin
       or new.status is distinct from old.status
       or new.warnings is distinct from old.warnings)

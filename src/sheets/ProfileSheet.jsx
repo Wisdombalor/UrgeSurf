@@ -38,12 +38,7 @@ export default function ProfileSheet({ data, user, isGuest, isAdmin, onClose, on
       setNameError('Enter your name so the app knows what to call you.')
       return
     }
-    const mustEnterSpend = data.assessment?.isAddict
     const spend = Number(weeklySpend)
-    if (mustEnterSpend && (weeklySpend === '' || !(spend > 0))) {
-      setSpendError('Your self-test showed risky patterns, so weekly spend is required to keep your savings tracker accurate.')
-      return
-    }
     if (weeklySpend !== '' && !(spend >= 0)) {
       setSpendError('Enter a valid amount, e.g. 5000.')
       return
@@ -116,7 +111,7 @@ export default function ProfileSheet({ data, user, isGuest, isAdmin, onClose, on
       </p>
       <h2>Country</h2>
       <CountrySelect value={country} onChange={setCountry} />
-      <h2>Weekly gambling spend{a?.isAddict ? ' (required)' : ''}</h2>
+      <h2>Weekly gambling spend (optional)</h2>
       <p className="s">Used to show how much money your sobriety is protecting.</p>
       <div className="row">
         <div style={{ flex: 2 }}>

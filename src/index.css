@@ -176,8 +176,16 @@ p.s {
 }
 /* Admin area identity: unmistakably separate from the app, scoped here only. */
 .admin-shell {
+  background: #000;
+  color: #f2f2f2;
+  border-radius: 20px;
+  padding: 18px;
   border-top: 3px solid var(--urge);
-  padding-top: 12px;
+  --card: #141414;
+  --line: #2b2b2b;
+  --tx: #f2f2f2;
+  --mut: #a3a3a3;
+  --acc: var(--urge);
 }
 .admin-eyebrow {
   display: inline-flex;
@@ -189,6 +197,55 @@ p.s {
   text-transform: uppercase;
   color: var(--urge);
   margin-bottom: 10px;
+}
+.admin-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.admin-shield {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--urge);
+  color: var(--urgetx);
+}
+.admin-brand-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.admin-title {
+  font-size: clamp(26px, 6vw, 34px);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+.admin-temp {
+  display: inline-block;
+  vertical-align: middle;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--urgetx);
+  background: var(--urge);
+  border-radius: 6px;
+  padding: 3px 8px;
+  margin-left: 8px;
+}
+.admin-sub {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .admin-shell .card.stat {
   border-left: 3px solid var(--urge);
@@ -298,6 +355,15 @@ p.s {
   text-align: left;
   width: auto;
   align-self: flex-start;
+}
+.linklike-muted {
+  color: var(--mut);
+  font-size: 13px;
+  font-weight: 600;
+}
+.landing-admin {
+  text-align: center;
+  margin-top: 2px;
 }
 .agree-row {
   display: flex;
@@ -917,6 +983,12 @@ a.cta {
     color: #06201b;
   }
 }
+/* Desktop: logged-out users log in via the sidebar, not the top-right. */
+@media (min-width: 1024px) {
+  .menu-wrap[data-guest="true"] .account-btn-auth {
+    display: none;
+  }
+}
 .icon-btn {
   flex: none;
   width: 48px;
@@ -1298,8 +1370,8 @@ a.cta {
     margin-right: auto;
   }
 }
-/* Desktops */
-@media (min-width: 1100px) {
+/* Laptops, desktops and bigger: sidebar nav on the left */
+@media (min-width: 1024px) {
   #app {
     max-width: 1080px;
     flex-direction: row;
@@ -1311,6 +1383,7 @@ a.cta {
   }
   nav {
     flex: none;
+    order: -1;
     width: 248px;
     flex-direction: column;
     align-items: stretch;
