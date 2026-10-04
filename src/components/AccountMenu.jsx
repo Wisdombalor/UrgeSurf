@@ -34,10 +34,6 @@ export default function AccountMenu({ name, email, avatar, isGuest, onProfile, o
         <Icon name="menu" size={24} />
       </button>
       <div className="account-inline">
-        <button className="account-btn" onClick={onProfile}>
-          <Icon name="user" size={18} />
-          My profile
-        </button>
         {isGuest ? (
           <button className="account-btn account-btn-accent account-btn-auth" onClick={onLogin}>
             <Icon name="logIn" size={18} />

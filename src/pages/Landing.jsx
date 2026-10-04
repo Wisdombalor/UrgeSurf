@@ -48,16 +48,6 @@ export default function Landing({ onSignup, onLogin, onGuest }) {
       <p className="s landing-note">
         Guests get every recovery tool on this device. Posting to the community needs an account.
       </p>
-      <p className="s landing-admin">
-        <button
-          className="linklike linklike-muted"
-          onClick={() => {
-            window.location.hash = '#/admin'
-          }}
-        >
-          Temporary admin login
-        </button>
-      </p>
     </div>
   )
 }

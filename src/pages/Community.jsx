@@ -461,7 +461,7 @@ export default function Community({ data, posts, isGuest, onLogin, onShare, onTo
         <div className="card" style={{ marginTop: 12, borderColor: 'var(--urge)' }} role="alertdialog" aria-label="Confirm delete">
           <b>Delete this {confirmDelete.kind === 'shared' ? 'story' : 'journal entry'}?</b>
           <p className="s" style={{ marginTop: 4 }}>
-            This cannot be undone on this device.
+            This removes it for everyone. You can&apos;t undo this.
           </p>
           <div className="row" style={{ marginTop: 10 }}>
             <button className="danger" style={{ marginTop: 0 }} onClick={confirmYes}>

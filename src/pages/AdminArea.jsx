@@ -68,6 +68,7 @@ export default function AdminArea({
   const [typeFilter, setTypeFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [openId, setOpenId] = useState(null)
+  const [showResolved, setShowResolved] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const db = supabase && isSupabaseConfigured ? supabase : null

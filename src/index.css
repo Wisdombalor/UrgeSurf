@@ -174,18 +174,10 @@ p.s {
   padding: 1px 6px;
   word-break: break-all;
 }
-/* Admin area identity: unmistakably separate from the app, scoped here only. */
+/* Admin area identity: same theme as the app, distinguished by the bold
+   header lockup — no alarm colors. */
 .admin-shell {
-  background: #000;
-  color: #f2f2f2;
-  border-radius: 20px;
-  padding: 18px;
-  border-top: 3px solid var(--urge);
-  --card: #141414;
-  --line: #2b2b2b;
-  --tx: #f2f2f2;
-  --mut: #a3a3a3;
-  --acc: var(--urge);
+  padding-top: 4px;
 }
 .admin-eyebrow {
   display: inline-flex;
@@ -212,8 +204,8 @@ p.s {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--urge);
-  color: var(--urgetx);
+  background: var(--acc);
+  color: #06201b;
 }
 .admin-brand-text {
   flex: 1;
@@ -235,8 +227,8 @@ p.s {
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--urgetx);
-  background: var(--urge);
+  color: var(--acc);
+  background: color-mix(in srgb, var(--acc) 14%, transparent);
   border-radius: 6px;
   padding: 3px 8px;
   margin-left: 8px;
@@ -248,7 +240,7 @@ p.s {
   text-overflow: ellipsis;
 }
 .admin-shell .card.stat {
-  border-left: 3px solid var(--urge);
+  border-left: 3px solid var(--acc);
 }
 .row {
   display: flex;
@@ -360,10 +352,6 @@ p.s {
   color: var(--mut);
   font-size: 13px;
   font-weight: 600;
-}
-.landing-admin {
-  text-align: center;
-  margin-top: 2px;
 }
 .agree-row {
   display: flex;

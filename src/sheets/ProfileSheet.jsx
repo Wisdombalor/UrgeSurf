@@ -15,6 +15,7 @@ export default function ProfileSheet({ data, user, isGuest, isAdmin, onClose, on
   const [spendError, setSpendError] = useState('')
   const [avatarError, setAvatarError] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [confirmingLogout, setConfirmingLogout] = useState(false)
 
   async function handleAvatar(e) {
     const f = e.target.files?.[0]
@@ -170,9 +171,24 @@ export default function ProfileSheet({ data, user, isGuest, isAdmin, onClose, on
               Open admin dashboard
             </button>
           ) : null}
-          <button className="ghost" style={{ padding: '8px 0 0', textAlign: 'left' }} onClick={onSignOut}>
-            Log out
-          </button>
+          {confirmingLogout ? (
+            <div className="row" style={{ marginTop: 8 }}>
+              <button className="danger danger-compact" onClick={onSignOut}>
+                Yes, log out
+              </button>
+              <button className="ghost" style={{ flex: 1 }} onClick={() => setConfirmingLogout(false)}>
+                Stay
+              </button>
+            </div>
+          ) : (
+            <button
+              className="ghost"
+              style={{ padding: '8px 0 0', textAlign: 'left' }}
+              onClick={() => setConfirmingLogout(true)}
+            >
+              Log out
+            </button>
+          )}
         </div>
       ) : (
         <div className="card" style={{ borderColor: 'var(--acc)' }}>
@@ -209,7 +225,7 @@ export default function ProfileSheet({ data, user, isGuest, isAdmin, onClose, on
             </div>
           </>
         ) : (
-          <button className="danger" onClick={() => setConfirmingDelete(true)}>
+          <button className="danger danger-compact" onClick={() => setConfirmingDelete(true)}>
             {signedIn ? 'Delete account' : 'Delete my data'}
           </button>
         )}

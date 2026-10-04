@@ -781,9 +781,23 @@ export default function App() {
   }
 
   // Hide / remove / restore a post's moderation state in the database.
+  // Local-only posts (temporary non-UUID ids) never reached the server,
+  // so they are scrubbed locally instead of failing the query.
   async function setPostModState(postId, modState, prevState) {
     const key = String(postId || '')
     if (!key) return false
+    if (!UUID_RE.test(key)) {
+      if (modState !== 'active') removePostEverywhere(key)
+      await logModAction({
+        action: modState === 'active' ? 'post_restored' : `post_${modState}`,
+        targetType: 'post',
+        targetId: key,
+        prevState: prevState || '',
+        newState: modState,
+        note: 'local-only post',
+      })
+      return true
+    }
     try {
       if (supabase && isSupabaseConfigured) {
         const { error } = await supabase.from('posts').update({ mod_state: modState }).eq('id', key)

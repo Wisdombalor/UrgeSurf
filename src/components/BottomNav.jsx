@@ -22,6 +22,14 @@ export default function BottomNav({ tab, onChange, showAdmin, account, onProfile
           <span className="tab-label">{label}</span>
         </button>
       ))}
+      {account?.user ? (
+        <button className="tab" onClick={onProfile}>
+          <span className="tab-ic">
+            <Icon name="user" size={24} />
+          </span>
+          <span className="tab-label">Profile</span>
+        </button>
+      ) : null}
       <div className="sidebar-foot" aria-label="Account">
         {account?.user ? (
           <button className="sidebar-user" onClick={onProfile}>
