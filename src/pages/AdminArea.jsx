@@ -63,6 +63,7 @@ export default function AdminArea({
   const [users, setUsers] = useState([])
   const [log, setLog] = useState([])
   const [stats, setStats] = useState(null)
+  const [backendError, setBackendError] = useState(false)
   const [statusFilter, setStatusFilter] = useState('pending')
   const [typeFilter, setTypeFilter] = useState('all')
   const [query, setQuery] = useState('')
@@ -73,6 +74,7 @@ export default function AdminArea({
 
   const fetchAll = useCallback(async () => {
     if (!db) return
+    setBackendError(false)
     try {
       const [rep, pst, usr, lg] = await Promise.all([
         db.from('reports').select('*').order('created_at', { ascending: false }).limit(200),
@@ -80,6 +82,10 @@ export default function AdminArea({
         db.from('profiles').select('id,name,email,is_admin,status,warnings,created_at').order('created_at', { ascending: false }).limit(200),
         db.from('moderation_log').select('*').order('created_at', { ascending: false }).limit(100),
       ])
+      const failures = [rep, pst, usr, lg].filter((r) => r.error)
+      // Missing tables/policies surface as query errors — say so plainly
+      // instead of rendering an eternally empty dashboard.
+      if (failures.length === 4) setBackendError(true)
       if (rep.data) {
         setRemoteReports(
           rep.data.map((r) => ({
@@ -299,7 +305,11 @@ export default function AdminArea({
     : allPosts.filter((p) => `${p.id} ${p.text} ${p.who}`.toLowerCase().includes(q))
 
   return (
-    <div>
+    <div className="admin-shell">
+      <div className="admin-eyebrow" aria-label="Administration area">
+        <Icon name="shield" size={16} />
+        <span>Administration</span>
+      </div>
       <div className="row" style={{ alignItems: 'center' }}>
         <p className="s brand-line">
           <b style={{ color: 'var(--acc)' }}>Admin</b>
@@ -330,6 +340,12 @@ export default function AdminArea({
           <h2>Overview</h2>
           {!db ? (
             <div className="error-banner">Admin backend is not connected (missing Supabase URL). Local reports still appear under Reports.</div>
+          ) : null}
+          {db && backendError ? (
+            <div className="error-banner">
+              Couldn&apos;t reach the admin tables. Run supabase/schema.sql in the Supabase SQL Editor,
+              then refresh this page.
+            </div>
           ) : null}
           <div className="row" style={{ marginTop: 10 }}>
             <div className="card stat">

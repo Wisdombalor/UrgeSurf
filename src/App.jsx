@@ -91,6 +91,17 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
+  // Visiting #/admin while logged out opens the login sheet once.
+  // Dismissing it stays dismissed until the route changes.
+  const adminAuthPrompted = useRef(null)
+  useEffect(() => {
+    if (adminRoute !== adminAuthPrompted.current) adminAuthPrompted.current = null
+    if (authReady && adminRoute && !user && !sheet && !adminAuthPrompted.current) {
+      adminAuthPrompted.current = adminRoute
+      setSheet({ name: 'auth', mode: 'login' })
+    }
+  })
+
   const dataRef = useRef(data)
   const dbRef = useRef(null)
   const uidRef = useRef(null)
